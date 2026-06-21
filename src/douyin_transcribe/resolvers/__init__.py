@@ -1,0 +1,1 @@
+"""Douyin input resolvers."""
