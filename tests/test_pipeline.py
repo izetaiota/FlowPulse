@@ -143,5 +143,6 @@ async def test_pipeline_cleans_temporary_media_after_failure(tmp_path: Path, mon
     completed = repository.get(task.id)
     task_dir = tmp_path / "tasks" / task.id
     assert completed.status == TaskStatus.FAILED
+    assert (task_dir / "source.json").is_file()
     assert not (task_dir / "video.mp4").exists()
     assert not (task_dir / "audio.wav").exists()

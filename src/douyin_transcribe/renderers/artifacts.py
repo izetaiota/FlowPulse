@@ -15,10 +15,10 @@ def render_artifacts(
     source_path.write_text(video.model_dump_json(indent=2), encoding="utf-8")
     artifacts.append(to_artifact(source_path, "application/json"))
 
+    transcript_path = directory / "transcript.json"
+    transcript_path.write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
     if "json" in formats:
-        path = directory / "transcript.json"
-        path.write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
-        artifacts.append(to_artifact(path, "application/json"))
+        artifacts.append(to_artifact(transcript_path, "application/json"))
     if "srt" in formats:
         path = directory / "transcript.srt"
         path.write_text(render_srt(transcript), encoding="utf-8")

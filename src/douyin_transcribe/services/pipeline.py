@@ -29,6 +29,10 @@ class PipelineService:
         self.running: set[asyncio.Task] = set()
 
     def create(self, request: TranscribeRequest) -> TaskRecord:
+        if request.client_request_id:
+            existing = self.repository.find_by_client_request_id(request.client_request_id)
+            if existing:
+                return existing
         task = self.repository.save(TaskRecord(id=str(uuid4()), request=request))
         self.enqueue(task.id)
         return task
@@ -48,6 +52,8 @@ class PipelineService:
         try:
             self.update(task, TaskStatus.RESOLVING, 10, "Resolving Douyin share page")
             video = await self.resolver.resolve(task.request.input)
+            source_path = directory / "source.json"
+            source_path.write_text(video.model_dump_json(indent=2), encoding="utf-8")
 
             embedded = extract_embedded_transcript(video)
             if embedded:

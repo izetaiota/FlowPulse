@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "minimum_chrome_version": "120",
+  "name": "Douyin Transcribe",
+  "description": "采集抖音分享链接，跟踪转写任务并整理字幕产物。",
+  "version": "0.1.0",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "activeTab",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "打开抖音内容整理"
+  }
+}
