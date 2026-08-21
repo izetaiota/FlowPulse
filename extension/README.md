@@ -34,7 +34,7 @@ npm.cmd run build
 1. 启动后端：
 
    ```powershell
-   .\.venv-dev\Scripts\python.exe -m uvicorn douyin_transcribe.main:app `
+   .\.venv\Scripts\python.exe -m uvicorn metacorpus.main:app `
      --host 127.0.0.1 `
      --port 8000
    ```

@@ -59,7 +59,7 @@ Copy-Item .env.example .env
 安装完成后启动服务：
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn douyin_transcribe.main:app `
+.\.venv\Scripts\python.exe -m uvicorn metacorpus.main:app `
   --host 127.0.0.1 `
   --port 8000
 ```
@@ -249,7 +249,7 @@ data/tasks/<task-id>/
 ## 项目结构
 
 ```text
-src/douyin_transcribe/
+src/douyin/
   api/             FastAPI 路由
   resolvers/       抖音分享页和备用 API 解析器
   services/        主流水线、媒体下载和内嵌字幕
@@ -289,6 +289,8 @@ src/xhs_spider/
   ```powershell
   .\.venv\Scripts\python.exe -m pip install -e ".[xhs]"
   ```
+
+- **可选代理**：在 `.env` 设 `XHS_PROXY=http://127.0.0.1:7890` 可让 PC/创作者的 XHS 请求走代理，留空则直连。
 
 ### 登录
 

@@ -380,16 +380,16 @@ Mock 仅用于显式指定 `engine=mock` 的开发和端到端冒烟测试。`au
 
 | 模块 | 文件 |
 | --- | --- |
-| 应用装配 | `src/douyin_transcribe/main.py` |
-| API 路由 | `src/douyin_transcribe/api/routes.py` |
-| 主流水线 | `src/douyin_transcribe/services/pipeline.py` |
-| 分享页解析 | `src/douyin_transcribe/resolvers/share_page.py` |
-| 外部解析 API | `src/douyin_transcribe/resolvers/api.py` |
-| 内嵌字幕 | `src/douyin_transcribe/services/embedded_subtitles.py` |
-| 视频下载和 FFmpeg | `src/douyin_transcribe/services/media.py` |
-| 转写引擎路由 | `src/douyin_transcribe/transcribers/router.py` |
-| 阿里听悟 | `src/douyin_transcribe/transcribers/tingwu.py` |
-| 产物渲染 | `src/douyin_transcribe/renderers/artifacts.py` |
-| 任务存储 | `src/douyin_transcribe/storage/tasks.py` |
-| 数据模型 | `src/douyin_transcribe/models.py` |
-| 配置模型 | `src/douyin_transcribe/config.py` |
+| 应用装配 | `src/douyin/main.py` |
+| API 路由 | `src/douyin/api/routes.py` |
+| 主流水线 | `src/douyin/services/pipeline.py` |
+| 分享页解析 | `src/douyin/resolvers/share_page.py` |
+| 外部解析 API | `src/douyin/resolvers/api.py` |
+| 内嵌字幕 | `src/douyin/services/embedded_subtitles.py` |
+| 视频下载和 FFmpeg | `src/douyin/services/media.py` |
+| 转写引擎路由 | `src/douyin/transcribers/router.py` |
+| 阿里听悟 | `src/douyin/transcribers/tingwu.py` |
+| 产物渲染 | `src/douyin/renderers/artifacts.py` |
+| 任务存储 | `src/douyin/storage/tasks.py` |
+| 数据模型 | `src/douyin/models.py` |
+| 配置模型 | `src/douyin/config.py` |

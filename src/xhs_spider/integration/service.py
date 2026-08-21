@@ -42,11 +42,13 @@ class XhsService:
     session therefore owns a dedicated single-thread executor.
     """
 
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path, proxy: str | None = None):
         self.data_dir = data_dir
         self.cookies = CookieStore(data_dir)
         self.jobs = JobRepository(data_dir)
         self.sessions = LoginSessionRegistry()
+        # curl_cffi expects a proxies mapping; None means direct connection.
+        self._proxies = {"http": proxy, "https": proxy} if proxy else None
         self._pc_api: XHS_Apis | None = None
         self._creator_api: XHS_Creator_Apis | None = None
         self._locks = {"pc": threading.Lock(), "creator": threading.Lock()}
@@ -60,9 +62,9 @@ class XhsService:
         cookie = self.cookies.get("pc")
         if not cookie:
             raise RuntimeError("尚未登录 PC 平台，请先调用登录接口")
-        auth = XHSPcAuth.from_cookie(cookie)
+        auth = XHSPcAuth.from_cookie(cookie, proxies=self._proxies)
         api = XHS_Apis(auth)
-        api.bootstrap()
+        api.bootstrap(proxies=self._proxies)
         self._pc_api = api
         return api
 
@@ -72,9 +74,9 @@ class XhsService:
         cookie = self.cookies.get("creator")
         if not cookie:
             raise RuntimeError("尚未登录 Creator 平台，请先调用登录接口")
-        auth = XHSCreatorAuth.from_cookie(cookie)
+        auth = XHSCreatorAuth.from_cookie(cookie, proxies=self._proxies)
         api = XHS_Creator_Apis(auth)
-        api.bootstrap()
+        api.bootstrap(proxies=self._proxies)
         self._creator_api = api
         return api
 
@@ -140,7 +142,7 @@ class XhsService:
         # The driver (and its curl_cffi Session) must be created on the executor
         # thread so the whole login lives on one thread.
         def work() -> tuple[object, str | None]:
-            driver = make_driver(platform)
+            driver = make_driver(platform, self._proxies)
             return driver, driver.start_qrcode()
 
         driver, qr_url = await self._run_on(executor, work)
@@ -183,7 +185,7 @@ class XhsService:
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="xhs-login")
 
         def work() -> tuple[object, object]:
-            driver = make_driver(platform)
+            driver = make_driver(platform, self._proxies)
             return driver, driver.start_phone(phone, zone)
 
         driver, ready = await self._run_on(executor, work)

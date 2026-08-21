@@ -5,6 +5,7 @@
 .uv-cache/
 .uv-python/
 .tmp/
+.tmp*
 .runtime/
 __pycache__/
 .pytest_cache/
