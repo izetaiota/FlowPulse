@@ -76,7 +76,86 @@ async function handleRequest(request: ExtensionRequest): Promise<unknown> {
     }
     case "artifact.read":
       return api.readArtifact(request.payload.taskId, request.payload.name);
+    case "xhs.grabCookie": {
+      const jar = await grabXhsCookie(request.payload.platform);
+      const names = [...jar.keys()];
+      const missing = ["a1", "web_session"].filter((name) => !jar.get(name));
+      if (missing.length) {
+        const detail = names.length
+          ? `缺少必要 Cookie：${missing.join("、")}。已读取到 ${names.length} 个：${names.slice(0, 20).join(", ")}。请打开并停留在一个已登录的小红书网页标签（如 www.xiaohongshu.com）后重试。`
+          : "未读取到任何 Cookie。请先打开并登录 www.xiaohongshu.com，再在 chrome://extensions 重新加载本扩展以授予权限。";
+        throw Object.assign(new Error(detail), { status: 400 });
+      }
+      const cookieString = [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
+      return api.xhsLoginCookie(cookieString, request.payload.platform);
+    }
+    case "xhs.loginStatus":
+      return api.xhsLoginStatus(request.payload.platform);
+    case "xhs.qrcodeStart":
+      return api.xhsQrcodeStart(request.payload.platform);
+    case "xhs.qrcodePoll":
+      return api.xhsQrcodePoll(request.payload.sessionId);
+    case "xhs.search":
+      return api.xhsSearch(request.payload.query, request.payload.requireNum);
+    case "xhs.noteDetail":
+      return api.xhsNoteDetail(request.payload.url);
+    case "xhs.userNotes":
+      return api.xhsUserNotes(request.payload.userUrl);
+    case "xhs.createJob":
+      return api.xhsCreateJob(request.payload);
+    case "xhs.listJobs":
+      return api.xhsListJobs();
+    case "xhs.getJob":
+      return api.xhsGetJob(request.payload.jobId);
   }
+}
+
+const XHS_COOKIE_URL: Record<string, string> = {
+  pc: "https://www.xiaohongshu.com/",
+  creator: "https://creator.xiaohongshu.com/"
+};
+
+// Building a complete XHS cookie jar needs two complementary sources:
+//   1. chrome.cookies.getAll — returns HttpOnly cookies (e.g. web_session)
+//      that page JavaScript can never see.
+//   2. document.cookie from a live xiaohongshu tab — returns the JS-set,
+//      non-HttpOnly cookies (a1, webId, gid, ...) which, in practice, the
+//      cookie store query may omit here.
+// Merging both yields the full jar the site actually uses.
+async function grabXhsCookie(platform: string): Promise<Map<string, string>> {
+  const url = XHS_COOKIE_URL[platform] ?? XHS_COOKIE_URL.pc;
+  const [byDomain, byUrl, fromTab] = await Promise.all([
+    chrome.cookies.getAll({ domain: "xiaohongshu.com" }),
+    chrome.cookies.getAll({ url }),
+    readTabDocumentCookie()
+  ]);
+  const jar = new Map<string, string>();
+  // JS cookies first, then let the authoritative cookie store override.
+  for (const [name, value] of fromTab) jar.set(name, value);
+  for (const cookie of byDomain) jar.set(cookie.name, cookie.value);
+  for (const cookie of byUrl) jar.set(cookie.name, cookie.value);
+  return jar;
+}
+
+async function readTabDocumentCookie(): Promise<Map<string, string>> {
+  const jar = new Map<string, string>();
+  const tabs = await chrome.tabs.query({ url: ["*://*.xiaohongshu.com/*"] });
+  const tab = tabs.find((item) => item.id != null);
+  if (!tab?.id) return jar;
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => document.cookie
+    });
+    const raw = typeof result?.result === "string" ? result.result : "";
+    for (const part of raw.split("; ")) {
+      const index = part.indexOf("=");
+      if (index > 0) jar.set(part.slice(0, index), part.slice(index + 1));
+    }
+  } catch {
+    // Tab may be discarded or not scriptable; fall back to chrome.cookies only.
+  }
+  return jar;
 }
 
 async function ensureSyncAlarm(): Promise<void> {

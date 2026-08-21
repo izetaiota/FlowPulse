@@ -5,7 +5,14 @@ import type {
   TaskPage,
   TaskRecord,
   TaskResult,
-  TranscribeRequest
+  TranscribeRequest,
+  XhsCreateJobRequest,
+  XhsDataResponse,
+  XhsJobRecord,
+  XhsLoginStatus,
+  XhsPlatform,
+  XhsQrcodePoll,
+  XhsQrcodeStart
 } from "../shared/contracts";
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -90,5 +97,42 @@ export const api = {
       mediaType: response.headers.get("content-type")?.split(";")[0] ?? "text/plain",
       content: await response.text()
     };
-  }
+  },
+
+  xhsLoginCookie: (cookies: string, platform: XhsPlatform) =>
+    apiFetch<XhsLoginStatus>("/api/v1/xhs/login/cookie", {
+      method: "POST",
+      body: JSON.stringify({ platform, cookies })
+    }),
+  xhsLoginStatus: (platform: XhsPlatform) =>
+    apiFetch<XhsLoginStatus>(`/api/v1/xhs/login/status?platform=${platform}`),
+  xhsQrcodeStart: (platform: XhsPlatform) =>
+    apiFetch<XhsQrcodeStart>("/api/v1/xhs/login/qrcode", {
+      method: "POST",
+      body: JSON.stringify({ platform })
+    }),
+  xhsQrcodePoll: (sessionId: string) =>
+    apiFetch<XhsQrcodePoll>(`/api/v1/xhs/login/qrcode/${sessionId}`),
+  xhsSearch: (query: string, requireNum: number) =>
+    apiFetch<XhsDataResponse>("/api/v1/xhs/search", {
+      method: "POST",
+      body: JSON.stringify({ query, require_num: requireNum })
+    }),
+  xhsNoteDetail: (url: string) =>
+    apiFetch<XhsDataResponse>("/api/v1/xhs/notes/detail", {
+      method: "POST",
+      body: JSON.stringify({ url })
+    }),
+  xhsUserNotes: (userUrl: string) =>
+    apiFetch<XhsDataResponse>("/api/v1/xhs/users/notes", {
+      method: "POST",
+      body: JSON.stringify({ user_url: userUrl })
+    }),
+  xhsCreateJob: (request: XhsCreateJobRequest) =>
+    apiFetch<XhsJobRecord>("/api/v1/xhs/jobs", {
+      method: "POST",
+      body: JSON.stringify(request)
+    }),
+  xhsListJobs: () => apiFetch<XhsJobRecord[]>("/api/v1/xhs/jobs"),
+  xhsGetJob: (jobId: string) => apiFetch<XhsJobRecord>(`/api/v1/xhs/jobs/${jobId}`)
 };

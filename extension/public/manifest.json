@@ -1,17 +1,22 @@
 {
   "manifest_version": 3,
   "minimum_chrome_version": "120",
-  "name": "Douyin Transcribe",
-  "description": "采集抖音分享链接，跟踪转写任务并整理字幕产物。",
+  "name": "MetaCorpus 元语助手",
+  "description": "一键解析短视频、笔记，提取文案字幕与完整元数据，输出结构化语料供给 AI 分析。",
   "version": "0.1.0",
   "permissions": [
     "sidePanel",
     "storage",
     "activeTab",
-    "alarms"
+    "alarms",
+    "cookies",
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
-    "http://127.0.0.1:8000/*"
+    "http://127.0.0.1:8000/*",
+    "https://*.xiaohongshu.com/*",
+    "https://xiaohongshu.com/*"
   ],
   "background": {
     "service_worker": "service-worker.js",
@@ -21,6 +26,6 @@
     "default_path": "sidepanel.html"
   },
   "action": {
-    "default_title": "打开抖音内容整理"
+    "default_title": "打开 MetaCorpus 元语助手"
   }
 }

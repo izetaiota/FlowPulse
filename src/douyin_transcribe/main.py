@@ -16,6 +16,8 @@ from douyin_transcribe.transcribers.router import TranscriberRouter
 from douyin_transcribe.transcribers.sensevoice import SenseVoiceTranscriber
 from douyin_transcribe.transcribers.tingwu import TingwuTranscriber
 from douyin_transcribe.transcribers.whisper import WhisperTranscriber
+from xhs_spider.integration.routes import get_xhs_service, router as xhs_router
+from xhs_spider.integration.service import XhsService
 
 
 def create_app() -> FastAPI:
@@ -83,12 +85,17 @@ def create_app() -> FastAPI:
         yield
         await client.aclose()
 
+    xhs_service = XhsService(settings.data_dir)
+
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.include_router(router)
+    app.include_router(xhs_router)
     app.dependency_overrides[get_pipeline] = lambda: pipeline
     app.dependency_overrides[get_repository] = lambda: repository
+    app.dependency_overrides[get_xhs_service] = lambda: xhs_service
     app.state.pipeline = pipeline
     app.state.repository = repository
+    app.state.xhs_service = xhs_service
     return app
 
 

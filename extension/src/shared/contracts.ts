@@ -108,6 +108,64 @@ export interface ApiError {
   message: string;
 }
 
+export type XhsPlatform = "pc" | "creator";
+
+export interface XhsLoginStatus {
+  platform: XhsPlatform;
+  logged_in: boolean;
+  user_id: string | null;
+  message: string;
+}
+
+export interface XhsDataResponse {
+  success: boolean;
+  message: string;
+  data: unknown;
+}
+
+export interface XhsQrcodeStart {
+  session_id: string;
+  platform: XhsPlatform;
+  qr_url: string;
+  qr_image_base64: string;
+}
+
+export interface XhsQrcodePoll {
+  session_id: string;
+  platform: XhsPlatform;
+  status: "waiting" | "scanned" | "confirmed" | "expired" | "error";
+  message: string;
+  logged_in: boolean;
+}
+
+/** The only API origin the extension is allowed to talk to (see manifest). */
+export const XHS_API_BASE = "http://127.0.0.1:8000";
+
+export type XhsJobType = "notes" | "user" | "search";
+export type XhsSaveChoice = "all" | "media" | "media-image" | "media-video" | "excel";
+
+export interface XhsCreateJobRequest {
+  type: XhsJobType;
+  save_choice: XhsSaveChoice;
+  excel_name?: string;
+  notes?: string[];
+  user_url?: string;
+  query?: string;
+  require_num?: number;
+}
+
+export interface XhsJobRecord {
+  id: string;
+  type: XhsJobType;
+  status: "pending" | "running" | "completed" | "failed";
+  message: string;
+  error: string | null;
+  note_count: number;
+  artifacts: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ArtifactContent {
   name: string;
   mediaType: string;
