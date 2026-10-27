@@ -99,11 +99,17 @@ FastAPI /api/weread/* ──► Vue3 前端「公众号订阅」页（复用 fro
   真实 Cookie 起服务完成 API 全流程联动验证（含真实降级：articles 接口 -2012 → cover 正常）
 
 
-### 阶段 2：定时调度 + RSS 输出（约 1~2 天）
+### 阶段 2：定时调度 + RSS 输出 + Webhook 告警 ✅ 2026-10-27 完成
 
-- [ ] **T2.1** 定时同步任务（默认每 2 小时，可配置；复用 douyin 模块的调度模式）
-- [ ] **T2.2** RSS 输出：`GET /api/weread/rss/{account_id}.xml` + 合并源 `/api/weread/rss/all.xml`（RSS 2.0，可先手写模板，不引重依赖）
-- [ ] **T2.3** Cookie 过期 / 同步失败 Webhook 告警（对齐 plan.md 模块 9：推送到飞书/钉钉）
+- [x] **T2.1** 定时同步（`scheduler.py`：FastAPI lifespan 内置 asyncio 循环，
+  `WEREAD_SYNC_INTERVAL_MINUTES` 默认 120 分钟、0=关闭；状态持久化 `data/weread/scheduler.json`；
+  `GET /api/weread/scheduler` 查看状态，`POST /api/weread/scheduler/trigger` 手动触发）
+- [x] **T2.2** RSS 输出（`rss.py` 手写 RSS 2.0 模板，无新依赖）：
+  `GET /api/weread/rss/{book_id}.xml` 单订阅源 + `GET /api/weread/rss/all.xml` 合并源
+- [x] **T2.3** Webhook 告警（`notify.py`：按 URL 自动适配飞书/钉钉/自定义格式，
+  同类告警 1 小时冷却；Cookie 失效与同步异常两路告警，`WEREAD_WEBHOOK_URL` 配置）
+- 测试：新增 8 个用例（RSS 格式与转义、三种 Webhook 载荷、冷却去重、调度触发告警），
+  全仓 48 个测试通过；真实服务验证 RSS XML 输出、120 分钟调度循环与手动触发
 
 ### 阶段 3：前端页面（约 1~2 天）
 

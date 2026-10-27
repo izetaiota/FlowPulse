@@ -18,7 +18,9 @@ from douyin.transcribers.tingwu import TingwuTranscriber
 from douyin.transcribers.whisper import WhisperTranscriber
 from xhs_spider.integration.routes import get_xhs_service, router as xhs_router
 from xhs_spider.integration.service import XhsService
-from weread.api import get_weread_service, router as weread_router
+from weread.api import get_weread_scheduler, get_weread_service, router as weread_router
+from weread.notify import WebhookNotifier
+from weread.scheduler import WereadScheduler
 from weread.service import WereadService
 from weread.storage import WereadRepository
 
@@ -85,18 +87,31 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        weread_scheduler.start()
         yield
         await client.aclose()
+        await weread_scheduler.stop()
 
     xhs_service = XhsService(settings.data_dir, proxy=settings.xhs_proxy or None)
 
     weread_repository = WereadRepository(settings.data_dir)
     if settings.weread_cookie and not weread_repository.get_credential():
         weread_repository.save_credential(settings.weread_cookie)
+    weread_notifier = (
+        WebhookNotifier(client, settings.weread_webhook_url)
+        if settings.weread_webhook_url
+        else None
+    )
     weread_service = WereadService(
         weread_repository,
         client,
         request_interval_seconds=settings.weread_request_interval_seconds,
+    )
+    weread_scheduler = WereadScheduler(
+        weread_service,
+        weread_repository,
+        notifier=weread_notifier,
+        interval_minutes=settings.weread_sync_interval_minutes,
     )
 
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
@@ -107,10 +122,12 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_repository] = lambda: repository
     app.dependency_overrides[get_xhs_service] = lambda: xhs_service
     app.dependency_overrides[get_weread_service] = lambda: weread_service
+    app.dependency_overrides[get_weread_scheduler] = lambda: weread_scheduler
     app.state.pipeline = pipeline
     app.state.repository = repository
     app.state.xhs_service = xhs_service
     app.state.weread_service = weread_service
+    app.state.weread_scheduler = weread_scheduler
     return app
 
 

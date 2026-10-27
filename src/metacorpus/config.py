@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     weread_cookie: str = ""
     # 微信读书请求最小间隔（秒），防频率限制
     weread_request_interval_seconds: float = 2.0
+    # 定时同步间隔（分钟），0 = 关闭内置调度
+    weread_sync_interval_minutes: int = 120
+    # 告警 Webhook（飞书/钉钉机器人地址，空 = 不告警）
+    weread_webhook_url: str = ""
 
 
 @lru_cache

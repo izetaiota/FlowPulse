@@ -18,6 +18,14 @@ from weread.models import (
     now_iso,
 )
 
+DEFAULT_SCHEDULER_STATE: dict = {
+    "enabled": False,
+    "interval_minutes": 0,
+    "running": False,
+    "last_run_at": None,
+    "last_result": None,
+}
+
 
 class WereadRepository:
     def __init__(self, data_dir: Path):
@@ -25,6 +33,14 @@ class WereadRepository:
         self.articles_root = self.root / "articles"
         self.root.mkdir(parents=True, exist_ok=True)
         self.articles_root.mkdir(parents=True, exist_ok=True)
+
+    # ---- 调度器状态 ----
+
+    def load_scheduler_state(self) -> dict:
+        return self._read_json(self.root / "scheduler.json", dict(DEFAULT_SCHEDULER_STATE))
+
+    def save_scheduler_state(self, state: dict) -> None:
+        self._write_json(self.root / "scheduler.json", state)
 
     # ---- 通用原子读写 ----
 

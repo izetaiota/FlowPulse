@@ -1,6 +1,7 @@
 """微信读书采集模块的 REST API。"""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 
 from weread.client import WereadAPIError
 from weread.models import (
@@ -11,12 +12,18 @@ from weread.models import (
     SubscriptionSyncResult,
     SyncSummary,
 )
+from weread.rss import build_rss
+from weread.scheduler import WereadScheduler
 from weread.service import WereadService
 
 router = APIRouter()
 
 
 def get_weread_service() -> WereadService:
+    raise RuntimeError("Dependency override is not configured")
+
+
+def get_weread_scheduler() -> WereadScheduler:
     raise RuntimeError("Dependency override is not configured")
 
 
@@ -166,3 +173,65 @@ async def overall_status(service: WereadService = Depends(get_weread_service)) -
             for s in subs
         ],
     }
+
+
+# ---- RSS 输出 ----
+
+
+def _rss_response(xml: str) -> Response:
+    return Response(content=xml, media_type="application/rss+xml; charset=utf-8")
+
+
+@router.get("/api/weread/rss/all.xml")
+async def rss_all(
+    request: Request, service: WereadService = Depends(get_weread_service)
+) -> Response:
+    base = str(request.base_url).rstrip("/")
+    articles = []
+    for sub in service.list_subscriptions():
+        articles.extend(service.repository.list_articles(sub.book_id))
+    articles.sort(key=lambda a: (a.publish_time, a.created_at), reverse=True)
+    xml = build_rss(
+        "心流 FlowPulse · 公众号订阅（全部）",
+        base,
+        "全部订阅公众号文章合并输出",
+        articles[:100],
+    )
+    return _rss_response(xml)
+
+
+@router.get("/api/weread/rss/{book_id}.xml")
+async def rss_one(
+    book_id: str,
+    request: Request,
+    service: WereadService = Depends(get_weread_service),
+) -> Response:
+    sub = service.repository.get_subscription(book_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="订阅不存在")
+    base = str(request.base_url).rstrip("/")
+    xml = build_rss(
+        f"心流 FlowPulse · {sub.name or book_id}",
+        base,
+        f"公众号「{sub.name or book_id}」最新文章",
+        service.repository.list_articles(book_id)[:100],
+    )
+    return _rss_response(xml)
+
+
+# ---- 调度器 ----
+
+
+@router.get("/api/weread/scheduler")
+async def scheduler_status(
+    scheduler: WereadScheduler = Depends(get_weread_scheduler),
+) -> dict:
+    return scheduler.status()
+
+
+@router.post("/api/weread/scheduler/trigger")
+async def scheduler_trigger(
+    scheduler: WereadScheduler = Depends(get_weread_scheduler),
+) -> dict:
+    """手动触发一次调度（与定时循环同路径，含告警与状态记录）。"""
+    return await scheduler.run_once()
