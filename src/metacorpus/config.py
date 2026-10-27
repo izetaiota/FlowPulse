@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_name: str = "MetaCorpus 元语助手 API"
+    app_name: str = "心流 FlowPulse API"
     data_dir: Path = Path("./data")
     transcribe_engine: str = "mock"
     max_download_bytes: int = 500 * 1024 * 1024

@@ -1,64 +1,42 @@
-# MetaCorpus 元语助手
+# 心流 FlowPulse
 
-MetaCorpus（元语助手）——抖音小红书元数据解析，AI 语料提取工具。一键解析短视频、笔记，提取文案字幕与完整元数据，输出结构化语料供给 AI 分析。
+> **繁杂交给系统，创作进入心流。**
 
-一个使用 Python 和 FastAPI 构建的后端服务：
+**心流 FlowPulse** —— 面向个人博主、独立创作者的自媒体全域运营工作台。规划打通公众号 / 抖音 / 小红书 / 视频号，把选题库、素材库、多渠道消息聚合、批量分发、内容数据、投流 ROI 复盘收进一个系统，支持 SaaS 与 Docker 私有化本地部署。核心主张：不是帮你管控账号，而是砍掉运营琐事，保护你的创作状态。
 
-- **抖音转写**：输入抖音分享链接或完整分享文案，解析视频、优先提取内嵌字幕，无字幕时调用本地模型、阿里听悟或 OpenAI-compatible API 完成语音转写。
-- **小红书抓取**（`src/xhs_spider`）：登录后解析笔记/用户/搜索，提取完整元数据，支持媒体下载与 Excel 导出。
+- 官网：<https://izetaiota.github.io/FlowPulse/>
+- 产品文档：[plan.md](plan.md)（命名方案、竞品调研、功能清单、官网文案、技术架构）
+- 技术方案：[docs/](docs/) 目录（抖音转写流水线、公众号 RSS 迁移计划等）
 
-## 功能特性
+## 项目状态
 
-- 支持抖音短链接、普通链接和完整分享文案。
-- 直接解析抖音分享页，支持配置备用 Resolver API。
-- 优先使用视频元数据中的字幕、ASR、OCR 或视频文本。
-- 使用 FFmpeg 将视频转换为 16kHz 单声道 WAV。
-- 支持阿里听悟、faster-whisper、SenseVoice 和 OpenAI-compatible API。
-- 异步创建任务，支持状态查询、失败重试和产物下载。
-- 输出视频元数据、结构化字幕、SRT 字幕和 Markdown 笔记。
-- 下载大小限制、UUID 任务隔离和基础 SSRF 防护。
+FlowPulse 处于 **早期开发阶段**，按「内容采集 → 工作台 → 分发与数据」的路径推进 MVP。当前已落地：
 
-## 处理流程
+| 能力 | 目录 | 状态 | 说明 |
+| --- | --- | --- | --- |
+| 公众号订阅 RSS（微信读书通道） | `src/weread/` | ✅ 可用 | 订阅增删、增量同步、站内阅读、RSS 输出、内置定时调度、Webhook 告警 |
+| 抖音转写 | `src/douyin/` | ✅ 可用 | 短视频解析 + 语音转写，输出结构化语料（JSON / SRT / Markdown） |
+| 小红书抓取 | `src/xhs_spider/` | ✅ 可用 | 笔记 / 用户 / 搜索抓取、媒体下载、Excel 导出（真实账号实测通过） |
+| 工作台前端 | `frontend/` | 🚧 骨架 | Vue3 + Element Plus；公众号订阅页已可用，其余页面为占位 |
+| 官网落地页 | `website/` | ✅ 上线 | GitHub Pages 自动部署 |
+| 消息中心 / 选题库 / 素材库 / 批量分发 / 内容与投流数据 | — | 📋 规划 | 见 [plan.md](plan.md) 功能需求清单 |
 
-```text
-抖音分享文本或 URL
-  -> 解析分享页或备用 Resolver API
-  -> 获取视频信息和播放地址
-  -> 检查内嵌字幕
-     -> 有字幕：直接标准化
-     -> 无字幕：下载视频 -> FFmpeg 提取音频 -> 调用转写引擎
-  -> 生成 source.json / transcript.json / transcript.srt / notes.md
-```
+## 快速开始
 
-使用阿里听悟时，音频会先上传至 OSS，再创建听悟离线任务并轮询结果。完整技术说明见 [docs/DOUYIN_TINGWU_PIPELINE.md](docs/DOUYIN_TINGWU_PIPELINE.md)。
+### 后端
 
-## 环境要求
-
-- Windows、Linux 或 macOS
-- 本地 Python 3.11 或更高版本
-- FFmpeg，用于从视频中提取音频
-- 真实转写所需的模型环境或第三方平台凭据
-
-本项目默认使用本地 Python 虚拟环境，不要求 Docker。
-
-## 本地安装
-
-以下示例使用 Windows PowerShell：
+本地 Python 3.11+，无需 Docker：
 
 ```powershell
-git clone https://github.com/izetaiota/meta.git
-cd meta
+git clone https://github.com/izetaiota/FlowPulse.git
+cd FlowPulse
 
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e .
 
 Copy-Item .env.example .env
-```
 
-安装完成后启动服务：
-
-```powershell
 .\.venv\Scripts\python.exe -m uvicorn metacorpus.main:app `
   --host 127.0.0.1 `
   --port 8000
@@ -70,291 +48,159 @@ Copy-Item .env.example .env
 - 存活检查：<http://127.0.0.1:8000/health/live>
 - 就绪检查：<http://127.0.0.1:8000/health/ready>
 
-## FFmpeg
-
-应用按以下顺序查找 FFmpeg：
-
-1. 环境变量 `FFMPEG_PATH`。
-2. 系统 `PATH` 中的 `ffmpeg`。
-3. 项目目录 `.tools/ffmpeg/bin/ffmpeg.exe`。
-
-`.tools/` 不会提交到 GitHub。若使用项目内 FFmpeg，请自行创建目录并放入可执行文件。
-
-## 转写引擎
-
-### Mock
-
-Mock 用于无模型、无 API Key 的接口冒烟测试：
-
-```env
-TRANSCRIBE_ENGINE=mock
-```
-
-请求中必须显式指定 `"engine": "mock"`。`auto` 模式不会降级到 Mock，以免产生虚假的成功结果。
-
-### 阿里听悟
-
-```env
-TRANSCRIBE_ENGINE=tingwu
-
-ALIYUN_ACCESS_KEY_ID=your-access-key-id
-ALIYUN_ACCESS_KEY_SECRET=your-access-key-secret
-ALIYUN_OSS_BUCKET=your-bucket
-ALIYUN_OSS_ENDPOINT=https://oss-cn-beijing.aliyuncs.com
-ALIYUN_OSS_PREFIX=douyin-transcribe
-
-TINGWU_APP_KEY=your-app-key
-TINGWU_REGION=cn-beijing
-TINGWU_LANGUAGE_HINT=cn
-TINGWU_POLL_INTERVAL_SECONDS=5
-TINGWU_TIMEOUT_SECONDS=1800
-```
-
-听悟流程：
-
-1. 上传 `audio.wav` 到 OSS。
-2. 生成临时签名 URL。
-3. 创建听悟离线转写任务。
-4. 轮询任务状态并下载结果 JSON。
-5. 标准化时间轴并生成 JSON、SRT 和 Markdown。
-
-请为 OSS 配置生命周期规则，避免转写音频长期保留。
-
-### faster-whisper
+### 工作台前端
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[whisper]"
+cd frontend
+pnpm install
+pnpm dev        # http://localhost:5173，/api 代理到 127.0.0.1:8000
 ```
 
-CPU 示例：
+页面模块（驾驶舱、账号管理、消息中心、选题、素材、公众号订阅、内容创作、发布任务、数据报表、设置）详见 [frontend/README.md](frontend/README.md)。
+
+## 公众号订阅 RSS（微信读书通道）
+
+`src/weread/` 基于 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT）的微信读书通道思路实现，是把公众号内容收进 FlowPulse 的第一步：**订阅公众号 → 定时增量同步 → 站内浏览 / RSS 输出**。
+
+工作原理：
+
+1. 在 **微信读书 App** 中订阅目标公众号（公众号在微信读书里表现为一种"书籍"，bookId 形如 `MP_WXS_3012726261`）；
+2. FlowPulse 持有微信读书网页版 Cookie（关键键：`wr_vid`、`wr_skey`），轮询微信读书 Web API 拉取文章；
+3. 从记录 ID 推导公众号原文链接（需将 token 中的 `~` 还原为 `_`，否则微信返回"参数错误"）；
+4. 订阅关系由 FlowPulse 自行维护（新版微信读书书架接口不再返回公众号列表），添加订阅时粘贴微信读书链接或 bookId 即可。
+
+### 使用流程
+
+1. 浏览器登录微信读书网页版，复制 Cookie；
+2. 保存凭证：`POST /api/weread/credential`（或 `.env` 中 `WEREAD_COOKIE`，服务启动时自动导入）；
+3. 添加订阅：`POST /api/weread/subscriptions`，请求体 `{"input": "<微信读书链接或bookId>"}`，会自动反查公众号名称头像并入库最新一篇；
+4. 手动全量同步：`POST /api/weread/sync`；此后由内置调度器定时增量同步；
+5. 在 RSS 阅读器订阅输出，或在工作台前端 `/weread` 页面管理全部流程。
+
+### API 一览
+
+| 分组 | 接口 |
+| --- | --- |
+| 凭证 | `POST /api/weread/credential`（保存）、`GET`（查看脱敏状态）、`DELETE`、`POST /api/weread/credential/validate`（即时校验有效性） |
+| 订阅 | `GET /api/weread/subscriptions`、`POST`（添加）、`DELETE /api/weread/subscriptions/{book_id}` |
+| 文章 | `GET /api/weread/subscriptions/{book_id}/articles`（游标分页）、`GET /api/weread/articles/{book_id}/{review_id}/content`（站内阅读，正文按需抓取并缓存） |
+| 同步 | `POST /api/weread/sync`（全部）、`POST /api/weread/subscriptions/{book_id}/sync`（单个）、`GET /api/weread/status`（凭证与各订阅健康状态） |
+| RSS | `GET /api/weread/rss/all.xml`（全部订阅合并）、`GET /api/weread/rss/{book_id}.xml`（单个公众号） |
+| 调度 | `GET /api/weread/scheduler`（状态）、`POST /api/weread/scheduler/trigger`（手动触发一轮） |
+
+### 配置项
 
 ```env
-TRANSCRIBE_ENGINE=whisper
-WHISPER_MODEL=small
-WHISPER_DEVICE=cpu
-WHISPER_COMPUTE_TYPE=int8
-WHISPER_LANGUAGE=zh
+WEREAD_COOKIE=                        # 启动时导入的微信读书 Cookie（可选，也可走 API）
+WEREAD_REQUEST_INTERVAL_SECONDS=2.0   # 对微信读书接口的限速间隔
+WEREAD_SYNC_INTERVAL_MINUTES=120      # 定时同步周期；<=0 关闭内置调度
+WEREAD_WEBHOOK_URL=                   # 告警 Webhook（飞书/钉钉群机器人），Cookie 失效、同步失败时推送
+WEREAD_RSS_FULL_TEXT=false            # RSS 是否输出全文（默认仅标题+链接+摘要）
 ```
 
-GPU 示例：
+数据保存在 `data/weread/`（订阅、文章、正文缓存、调度状态，文件型存储）。Cookie 有效期约数天到数周，过期时可通过 `status` 接口发现并触发 Webhook 告警，重新复制 Cookie 保存即可。
 
-```env
-WHISPER_DEVICE=cuda
-WHISPER_COMPUTE_TYPE=float16
-```
+> 微信读书接口为非官方通道，本项目按"个人私有化使用 + 限速 + 过期告警"设计，请勿高频大量拉取。迁移决策与技术细节见 [docs/WECHAT_WEREAD_RSS_PLAN.md](docs/WECHAT_WEREAD_RSS_PLAN.md)。
 
-Windows 下可将 CUDA 运行库 DLL 放入 `.tools/cuda/bin`，应用会在启动本地模型前加载该目录。
+## 抖音转写
 
-### SenseVoice
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[sensevoice]"
-```
-
-```env
-TRANSCRIBE_ENGINE=sensevoice
-```
-
-首次运行时，ModelScope/FunASR 会下载所需模型。
-
-### OpenAI-compatible API
-
-```env
-TRANSCRIBE_ENGINE=openai
-OPENAI_TRANSCRIBE_BASE_URL=https://api.openai.com/v1
-OPENAI_TRANSCRIBE_API_KEY=your-api-key
-OPENAI_TRANSCRIBE_MODEL=whisper-1
-```
-
-## API 使用
-
-### 创建任务
-
-```powershell
-curl.exe -X POST http://127.0.0.1:8000/api/v1/tasks/transcribe `
-  -H "Content-Type: application/json" `
-  -d '{"input":"https://v.douyin.com/example/","engine":"tingwu","formats":["json","srt","markdown"],"keep_video":false}'
-```
-
-接口返回 HTTP `202` 和任务 ID。
-
-### 查询任务
-
-```powershell
-curl.exe http://127.0.0.1:8000/api/v1/tasks/<task-id>
-```
-
-任务状态：
+输入抖音分享链接或完整分享文案，解析视频、优先提取内嵌字幕，无字幕时调用本地模型、阿里听悟或 OpenAI-compatible API 完成语音转写。
 
 ```text
-pending
-  -> resolving
-  -> downloading
-  -> extracting_audio
-  -> transcribing
-  -> rendering
-  -> completed | failed
+抖音分享文本或 URL
+  -> 解析分享页或备用 Resolver API
+  -> 获取视频信息和播放地址
+  -> 检查内嵌字幕
+     -> 有字幕：直接标准化
+     -> 无字幕：下载视频 -> FFmpeg 提取音频 -> 调用转写引擎
+  -> 生成 source.json / transcript.json / transcript.srt / notes.md
 ```
 
-### 重试任务
+- 支持短链接、普通链接和完整分享文案，可配置备用 Resolver API（`DOUYIN_RESOLVER_BASE_URL`）。
+- 转写引擎：**阿里听悟**、**faster-whisper**（`pip install -e ".[whisper]"`）、**SenseVoice**（`pip install -e ".[sensevoice]"`）、**OpenAI-compatible API**、**Mock**（接口冒烟，仅显式指定时生效）。
+- FFmpeg 查找顺序：环境变量 `FFMPEG_PATH` → 系统 `PATH` → 项目目录 `.tools/ffmpeg/bin/ffmpeg.exe`。
+- 异步任务模型：`POST /api/v1/tasks/transcribe` 创建（202），`GET /api/v1/tasks/<task-id>` 查询，`POST .../retry` 重试，`GET .../artifacts` 获取产物。
 
-```powershell
-curl.exe -X POST http://127.0.0.1:8000/api/v1/tasks/<task-id>/retry
-```
-
-### 获取产物
-
-```powershell
-curl.exe http://127.0.0.1:8000/api/v1/tasks/<task-id>/artifacts
-curl.exe -O http://127.0.0.1:8000/api/v1/tasks/<task-id>/artifacts/transcript.srt
-```
-
-## 产物目录
-
-每个任务保存在独立目录：
+产物目录：
 
 ```text
 data/tasks/<task-id>/
-  task.json
-  source.json
-  transcript.json
-  transcript.srt
-  notes.md
-  video.mp4       # 仅 keep_video=true 时保留
+  task.json          # 请求、状态、进度、错误和产物列表
+  source.json        # 抖音视频信息和原始元数据
+  transcript.json    # 全文、引擎和分段时间轴
+  transcript.srt     # 标准 SRT 字幕
+  notes.md           # 带来源信息的 Markdown 笔记
+  video.mp4          # 仅 keep_video=true 时保留
 ```
 
-| 文件 | 内容 |
-| --- | --- |
-| `task.json` | 请求、状态、进度、错误和产物列表 |
-| `source.json` | 抖音视频信息和原始元数据 |
-| `transcript.json` | 全文、引擎和分段时间轴 |
-| `transcript.srt` | 标准 SRT 字幕 |
-| `notes.md` | 带来源信息的 Markdown 笔记 |
+各引擎的环境变量配置与听悟 OSS 流程说明见 [.env.example](.env.example) 和 [docs/DOUYIN_TINGWU_PIPELINE.md](docs/DOUYIN_TINGWU_PIPELINE.md)。
 
-## 开发与测试
+## 小红书抓取
 
-安装开发依赖：
+`src/xhs_spider/` 移植自 [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)（逐字移植，仅重写 import 前缀），挂载到同一个 FastAPI 应用，路由前缀 `/api/v1/xhs`。
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-```
+- **前置**：Node.js（签名运行时）+ `cd src\xhs_spider && npm.cmd install`（crypto-js）；Python 依赖 `pip install -e ".[xhs]"`；可选代理 `XHS_PROXY`。
+- **登录**：Cookie 直登 / 扫码 / 手机验证码，登录态留存于 `data/xhs/cookies.json`。扫码与 Cookie 登录均已真实账号实测通过；Cookie 直登需完整 Cookie（必须同时含 `web_session` 和 `a1`，可用仓库 `extension/` 下的配套 Chrome 扩展一键获取）。
+- **数据接口**：笔记详情 / 评论 / 无水印媒体、关键词与用户搜索、推荐流、用户资料与笔记、消息通知、创作者中心、蒲公英 / 千帆，均直接返回 JSON。
+- **异步任务**：`POST /api/v1/xhs/jobs` 创建抓取+下载任务（媒体、Excel 导出），产物在 `data/xhs/jobs/<job_id>/`。
 
-运行测试和静态检查：
+上游同步与维护说明：平台算法变化时，从上游拉新版覆盖 `apis/`、`xhs_utils/`、`spider/` 三个目录并重写 import 前缀，`integration/` 集成层一般无需改动。
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\ruff.exe check .
-```
+## 工作台前端
+
+`frontend/` 为 Vue 3 + Vite + TypeScript + Element Plus + Pinia + Tailwind CSS 的管理后台骨架，页面模块按 [plan.md](plan.md)「产品功能需求清单」划分：
+
+| 路由 | 模块 | 状态 |
+| --- | --- | --- |
+| `/weread` | 公众号订阅 | ✅ 已对接后端（Cookie、订阅、文章、RSS、定时同步） |
+| `/dashboard`、`/accounts`、`/messages`、`/topics`、`/materials`、`/content/create`、`/publish`、`/reports/*`、`/settings` | 驾驶舱、账号、消息、选题、素材、创作、发布、数据、设置 | 🚧 骨架占位 |
+
+详见 [frontend/README.md](frontend/README.md)。
 
 ## 项目结构
 
 ```text
-src/douyin/
-  api/             FastAPI 路由
-  resolvers/       抖音分享页和备用 API 解析器
-  services/        主流水线、媒体下载和内嵌字幕
-  transcribers/    听悟、Whisper、SenseVoice、OpenAI 和 Mock
-  renderers/       JSON、SRT 和 Markdown 渲染
-  storage/         文件型任务仓库
-src/xhs_spider/
-  apis/            小红书 PC / Creator API 客户端（移植）
-  xhs_utils/       签名运行时、JS 算法、数据处理（移植）
-  spider/          批量抓取与下载编排（移植）
-  integration/     异步 service、FastAPI 路由、登录驱动、任务仓库（新增集成层）
+src/
+  metacorpus/        应用入口、全局配置（FastAPI app 工厂）
+  weread/            公众号订阅 RSS（微信读书通道）：client / service / storage / rss / scheduler / notify / api
+  douyin/            抖音转写：resolvers / services / transcribers / renderers / storage / api
+  xhs_spider/        小红书抓取：apis / xhs_utils / spider（上游移植）+ integration（本项目集成层）
+frontend/            Vue3 工作台前端
+website/             官网落地页（GitHub Pages）
+extension/           Chrome 扩展（小红书 Cookie 一键获取）
+docs/                技术文档
+scripts/             辅助脚本（微信读书通道 probe 等）
+data/                运行时数据（任务、订阅、登录态，不入库）
 ```
 
-## 小红书（XHS）抓取模块
+## 开发与测试
 
-`src/xhs_spider/` 移植自 Spider_XHS，作为独立领域模块挂载到同一个 FastAPI 应用，复用其异步任务模型，路由前缀 `/api/v1/xhs`。
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\ruff.exe check .
+```
 
-### 上游项目 / 维护说明
+## 路线图
 
-- **原始项目**：[cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)
-- `src/xhs_spider/{apis,xhs_utils,spider}` 是从上游**逐字移植**，仅重写了内部 import 前缀（`apis.` → `xhs_spider.apis.` 等），**未改动任何抓取/签名逻辑**。所有登录、签名 JS（`xhs_utils/*/js`）、数据解析均与上游一致。
-- `src/xhs_spider/integration/` 是本项目**新增**的集成层（异步 service、FastAPI 路由、登录驱动、任务仓库），不属于上游。
-- **升级方式**：从上游拉取新版后，覆盖 `apis/`、`xhs_utils/`、`spider/`，再对这三个目录批量执行 import 前缀重写（`from apis` → `from xhs_spider.apis`、`from xhs_utils` → `from xhs_spider.xhs_utils`、`from spider` → `from xhs_spider.spider`），`integration/` 一般无需改动。小红书线上算法变化时，通常只需同步上游的 `js/` 与 `apis/` 即可。
+- [x] 微信读书公众号订阅 RSS（订阅 / 增量同步 / RSS / 定时调度 / Webhook 告警）
+- [ ] 工作台前端逐页落地（驾驶舱 → 消息中心 → 选题 / 素材库）
+- [ ] 多平台账号接入与统一消息聚合
+- [ ] 内容编辑与批量分发
+- [ ] 内容数据监控与投流 ROI 分析
+- [ ] Docker 私有化一键部署（compose + SQLite 单文件）
 
-### 前置要求
-
-- **Node.js**：签名运行时通过子进程调用 `node` 执行 `xhs_utils/*/js` 下的算法（`x-s`/`x-t`/`b1`/`websectiga`/`profileData`）。
-- **crypto-js**：部分 JS 依赖该 npm 包，安装一次即可（Node 会从 js 目录逐级向上查找 `node_modules`）：
-
-  ```powershell
-  cd src\xhs_spider
-  npm.cmd install
-  ```
-
-- **Python 可选依赖组**：
-
-  ```powershell
-  .\.venv\Scripts\python.exe -m pip install -e ".[xhs]"
-  ```
-
-- **可选代理**：在 `.env` 设 `XHS_PROXY=http://127.0.0.1:7890` 可让 PC/创作者的 XHS 请求走代理，留空则直连。
-
-### 登录
-
-登录态按平台（`pc` / `creator`）留存于 `data/xhs/cookies.json`：
-
-- Cookie 直登：`POST /api/v1/xhs/login/cookie`
-- 扫码登录：`POST /api/v1/xhs/login/qrcode`（返回 base64 二维码）→ 轮询 `GET /api/v1/xhs/login/qrcode/{session_id}`
-- 手机登录：`POST /api/v1/xhs/login/phone/code` → `POST /api/v1/xhs/login/phone/verify`
-- 登录状态：`GET /api/v1/xhs/login/status?platform=pc`
-
-> **扫码 / Cookie 登录均已实测可用。**
->
-> - Cookie 直登：完整 Cookie 必须同时包含 HttpOnly 的 `web_session` 和前端 JS 写入的 `a1`。用浏览器 DevTools 复制请求头 Cookie，或使用配套扩展的「一键获取 Cookie 登录」（扩展会自动合并 `chrome.cookies` 与登录页 `document.cookie` 得到完整 Cookie）。
-> - 扫码 / 手机登录：单个登录会话的 curl_cffi 请求必须固定在**同一线程**上完成整个流程（会话创建 → 轮询 → 换取正式会话）；跨线程复用会改变 libcurl 句柄的连接/TLS 状态，触发小红书风控软拒绝。服务端为每个登录会话分配独立单线程执行器来保证这一点。
->
-> **验证结论（真实账号实测通过）**：扫码登录、Cookie 登录均可完成；`login/status` → `search`（关键词）→ `notes/detail` 全链路正常返回真实数据。
-
-### 数据接口（直接返回 JSON）
-
-笔记 / 搜索：
-
-- 笔记详情：`POST /api/v1/xhs/notes/detail`
-- 笔记评论：`POST /api/v1/xhs/notes/comments`
-- 无水印视频 / 图片：`POST /api/v1/xhs/notes/no-water-video`、`POST /api/v1/xhs/notes/no-water-image`
-- 关键词搜索笔记：`POST /api/v1/xhs/search`
-- 搜索用户：`POST /api/v1/xhs/search/users`
-- 搜索联想词：`POST /api/v1/xhs/search/keyword`
-- 推荐流：`POST /api/v1/xhs/homefeed`、频道列表 `GET /api/v1/xhs/homefeed/channels`
-
-用户：
-
-- 用户资料：`POST /api/v1/xhs/users/info`
-- 用户全部笔记 / 点赞 / 收藏：`POST /api/v1/xhs/users/notes`、`/users/like-notes`、`/users/collect-notes`
-
-消息通知：`GET /api/v1/xhs/messages/{unread,mentions,likes-collects,connections}`
-
-创作者中心：
-
-- 已发布作品：`POST /api/v1/xhs/creator/posted-notes`
-- 账号信息：`GET /api/v1/xhs/creator/user-info`
-- 话题 / 位置搜索：`POST /api/v1/xhs/creator/topic`、`/creator/location`
-- 发布链路：`POST /api/v1/xhs/creator/upload-media`、`/creator/post-note`（薄封装，尚未在真实账号验证）
-
-蒲公英（品牌合作）：`POST /api/v1/xhs/pgy/{categories,users,user-detail}`
-
-千帆（电商达人）：`POST /api/v1/xhs/qianfan/{categories,users,user-detail}`
-
-> 蒲公英 / 千帆接口默认复用已登录的 PC Cookie，也可在请求体中单独传入 `cookies`。
-
-### 异步下载/导出任务
-
-`POST /api/v1/xhs/jobs` 创建抓取+下载任务（`type` 为 `notes`/`user`/`search`，`save_choice` 支持 `all`/`media`/`media-image`/`media-video`/`excel`）。通过 `GET /api/v1/xhs/jobs/{job_id}` 查询状态，产物（媒体、Excel）保存在 `data/xhs/jobs/<job_id>/`，可经 `GET /api/v1/xhs/jobs/{job_id}/artifacts/{path}` 下载。
+完整功能需求清单见 [plan.md](plan.md)。
 
 ## 当前限制
 
-- 后台任务运行在当前 FastAPI 进程中，进程重启不会自动恢复未完成任务。
-- XHS 登录会话（扫码/手机中间态）仅存于内存，进程重启后需重新发起登录。
-- XHS 签名依赖外部 Node 与小红书线上算法，平台更新或风控变化可能导致失效。
-- 暂未提供身份认证、限流、任务取消和 SSE 进度推送。
-- 抖音分享页结构或风控变化可能导致直接解析失效。
-- 发现内嵌字幕时会跳过下载和听悟，即使请求指定 `engine=tingwu`。
-- 听悟上传到 OSS 的音频对象目前不会由应用主动删除。
+- 后台任务与调度器运行在当前 FastAPI 进程中，进程重启不恢复未完成任务（调度状态已持久化，重启后继续）。
+- 微信读书通道为非官方接口，存在频率限制与 Cookie 过期风险；高频大量拉取可能触发风控。
+- XHS 签名依赖外部 Node 与小红书线上算法，平台更新或风控变化可能导致失效；XHS 登录中间态会话仅存于内存。
+- 暂未提供身份认证、限流、任务取消和 SSE 进度推送；Docker 私有化部署尚未提供。
+- 抖音分享页结构或风控变化可能导致直接解析失效；发现内嵌字幕时会跳过下载和听悟转写。
 
-生产部署前建议增加 API 鉴权、持久化任务队列、并发限制、结构化日志以及 OSS 生命周期策略。
+生产部署前建议增加 API 鉴权、持久化任务队列、并发限制、结构化日志。
 
 ## License
 

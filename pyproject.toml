@@ -1,7 +1,7 @@
 [project]
 name = "douyin-transcribe-api"
 version = "0.1.0"
-description = "MetaCorpus 元语助手 — 抖音小红书元数据解析与 AI 语料提取服务"
+description = "心流 FlowPulse — 自媒体全域运营工作台（抖音转写 / 小红书抓取 / 公众号订阅 RSS）"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
