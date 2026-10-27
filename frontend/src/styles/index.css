@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* 品牌色与 Element Plus 主色覆盖（与官网保持一致） */
+:root {
+  --fp-primary: #6d5ef2;
+  --fp-dark: #0a0e1a;
+  --fp-dark-2: #101728;
+
+  --el-color-primary: var(--fp-primary);
+  --el-color-primary-dark-2: #5b4de0;
+  --el-color-primary-light-3: #8d81f5;
+  --el-color-primary-light-5: #a9a1f8;
+  --el-color-primary-light-7: #c5bffa;
+  --el-color-primary-light-8: #d3cdfb;
+  --el-color-primary-light-9: #e9e5fd;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Noto Sans SC",
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  background-color: #f5f6fa;
+  color: #1f2329;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 路由切换过渡 */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}

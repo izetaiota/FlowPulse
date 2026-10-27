@@ -18,3 +18,4 @@ src/xhs_spider/node_modules/
 *.egg-info/
 .coverage
 htmlcov/
+.idea/
