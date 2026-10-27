@@ -83,24 +83,21 @@ FastAPI /api/weread/* ──► Vue3 前端「公众号订阅」页（复用 fro
   - reviewId → 原文链接（`~`→`_` 还原）推导正确，微信文章页实测可打开
   - 验证命令：`python scripts/weread_probe.py --book-id MP_WXS_xxxxxxx`
 
-### 阶段 1：采集模块 + 凭证管理（约 2~3 天）
+### 阶段 1：采集模块 + 凭证管理 ✅ 2026-10-27 完成
 
-- [ ] **T1.1** 新建 `src/weread/` 模块骨架与数据模型：
-  - `mp_account`（订阅的公众号：bookId、名称、头像、最后同步时间、状态）
-  - `mp_article`（文章：aid 唯一键、标题、链接、封面、摘要、发布时间、入库时间）
-  - 凭证存储（wx.lic 或数据库加密字段，保存 wr_* Cookie + ticket + 更新时间）
-- [ ] **T1.2** `client.py`：微信读书 Web API 封装
-  - 错误码映射：`-2012`→Cookie 失效（触发告警）、`-2010/-2041`→需重新扫码、`200013`→频率限制（退避）
-  - 请求间隔 ≥10s/篇、随机抖动、最多重试 2 次（对齐 we-mp-rss `interval` 默认值与 issue #469 教训）
-- [ ] **T1.3** `collector.py`：增量同步（按 aid 去重、`~`→`_` token 还原、只拉新增）
-- [ ] **T1.4** 凭证管理 API：
-  - `POST /api/weread/credential`（手动粘贴浏览器 Cookie，V1 用这种）
-  - `GET /api/weread/status`（Cookie 状态、各订阅最近同步结果）
-  - 模块内保留 we-mp-rss 的 MIT 版权声明（NOTICE 注释）
-- [ ] **T1.5** 订阅发现：新版书架不返回公众号，订阅关系由 FlowPulse 自维护——
-  `POST /api/weread/subscriptions` 支持粘贴两种输入：`MP_WXS_xxx` bookId 或微信读书
-  App「公众号主页 → 复制链接」得到的 `/web/mp/reader/MP_WXS_xxx` URL，后端调
-  `/api/mp/cover` 反查公众号名称/头像后入库
+- [x] **T1.1** `src/weread/` 模块：`models.py`（MpSubscription/MpArticle/CredentialState）、
+  `storage.py`（JSON 文件存储：credential.json / subscriptions.json / articles/<book_id>.json）
+- [x] **T1.2** `client.py`：httpx 异步客户端，错误码映射（auth/rate_limit/api/network）、
+  最小请求间隔限速（默认 2s + 抖动）、articles → cover 自动降级
+- [x] **T1.3** `service.py`：增量同步（reviewId 去重、`~`→`_` token 还原）、
+  凭证校验（书架受限时用订阅 cover 二次探测，识别半失效状态）
+- [x] **T1.4** 凭证管理 API（`/api/weread/credential`、`/api/weread/status`），
+  模块 docstring 保留 we-mp-rss MIT 来源声明
+- [x] **T1.5** 订阅发现（`POST /api/weread/subscriptions`，支持 bookId 与链接两种输入，
+  cover 反查名称头像并入库首篇文章）
+- 测试：`tests/weread/test_weread.py` 10 个用例（respx mock），全仓 41 个测试通过；
+  真实 Cookie 起服务完成 API 全流程联动验证（含真实降级：articles 接口 -2012 → cover 正常）
+
 
 ### 阶段 2：定时调度 + RSS 输出（约 1~2 天）
 

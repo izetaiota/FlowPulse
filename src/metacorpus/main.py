@@ -18,6 +18,9 @@ from douyin.transcribers.tingwu import TingwuTranscriber
 from douyin.transcribers.whisper import WhisperTranscriber
 from xhs_spider.integration.routes import get_xhs_service, router as xhs_router
 from xhs_spider.integration.service import XhsService
+from weread.api import get_weread_service, router as weread_router
+from weread.service import WereadService
+from weread.storage import WereadRepository
 
 
 def create_app() -> FastAPI:
@@ -87,15 +90,27 @@ def create_app() -> FastAPI:
 
     xhs_service = XhsService(settings.data_dir, proxy=settings.xhs_proxy or None)
 
+    weread_repository = WereadRepository(settings.data_dir)
+    if settings.weread_cookie and not weread_repository.get_credential():
+        weread_repository.save_credential(settings.weread_cookie)
+    weread_service = WereadService(
+        weread_repository,
+        client,
+        request_interval_seconds=settings.weread_request_interval_seconds,
+    )
+
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.include_router(router)
     app.include_router(xhs_router)
+    app.include_router(weread_router)
     app.dependency_overrides[get_pipeline] = lambda: pipeline
     app.dependency_overrides[get_repository] = lambda: repository
     app.dependency_overrides[get_xhs_service] = lambda: xhs_service
+    app.dependency_overrides[get_weread_service] = lambda: weread_service
     app.state.pipeline = pipeline
     app.state.repository = repository
     app.state.xhs_service = xhs_service
+    app.state.weread_service = weread_service
     return app
 
 

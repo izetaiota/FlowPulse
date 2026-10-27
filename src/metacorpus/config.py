@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # Leave empty to connect directly.
     xhs_proxy: str = ""
 
+    # --- WeRead（微信公众号 RSS 采集通道）---
+    # 微信读书 Cookie（wr_vid=...; wr_skey=... 整串）；也可用 API 端点动态保存
+    weread_cookie: str = ""
+    # 微信读书请求最小间隔（秒），防频率限制
+    weread_request_interval_seconds: float = 2.0
+
 
 @lru_cache
 def get_settings() -> Settings:
