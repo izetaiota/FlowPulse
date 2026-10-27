@@ -14,11 +14,13 @@ from __future__ import annotations
 
 import asyncio
 import random
+import re
 import time
 from collections.abc import Callable
 from urllib.parse import quote
 
 import httpx
+from bs4 import BeautifulSoup
 
 from weread.models import MpArticle
 
@@ -109,6 +111,116 @@ def cover_to_article(payload: dict, book_id: str) -> MpArticle:
     )
 
 
+# ---- 正文提取（移植自 we-mp-rss MIT 实现，实测 2026-10 微信改版后走 content_noencode 兜底）----
+
+
+def _extract_js_single_quoted(html: str, marker: str) -> str:
+    """从页面 JS 里按转义感知方式提取单引号字符串。"""
+    index = html.find(marker)
+    if index < 0:
+        return ""
+    index += len(marker)
+    out: list[str] = []
+    k = index
+    while k < len(html):
+        ch = html[k]
+        if ch == "\\":
+            out.append(html[k : k + 2])
+            k += 2
+            continue
+        if ch == "'":
+            break
+        out.append(ch)
+        k += 1
+    return "".join(out)
+
+
+def _js_unescape(s: str) -> str:
+    out: list[str] = []
+    m = 0
+    while m < len(s):
+        c = s[m]
+        if c == "\\" and m + 1 < len(s):
+            nxt = s[m + 1]
+            if nxt == "x" and m + 3 < len(s):
+                try:
+                    out.append(chr(int(s[m + 2 : m + 4], 16)))
+                    m += 4
+                    continue
+                except ValueError:
+                    pass
+            mapping = {"n": "\n", "t": "\t", "r": "\r", "'": "'", '"': '"', "\\": "\\"}
+            out.append(mapping.get(nxt, nxt))
+            m += 2
+        else:
+            out.append(c)
+            m += 1
+    return "".join(out)
+
+
+def _extract_content_noencode(html: str) -> str:
+    """兜底：从页面 JS 变量 content_noencode 提取全文纯文本（换行为 \\x0a），按段落转 <p>。"""
+    raw = _extract_js_single_quoted(html, "content_noencode: '")
+    if not raw:
+        raw = _extract_js_single_quoted(html, "content_noencode:'")
+    if not raw:
+        return ""
+    text = _js_unescape(raw).strip()
+    if not text:
+        return ""
+    paragraphs = []
+    for part in text.split("\n"):
+        part = part.strip()
+        if not part:
+            continue
+        part = part.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        paragraphs.append(f"<p>{part}</p>")
+    return "".join(paragraphs)
+
+
+def extract_mp_content(html: str) -> str:
+    """从文章页提取正文 HTML。
+
+    优先 #js_content / .rich_media_content 节点（老版页面，含富文本）；
+    新版页面两者均无，全文在 JS 变量 content_noencode（纯文本，图片会丢失）。
+    """
+    soup = BeautifulSoup(html or "", "html.parser")
+    content = soup.select_one("#js_content") or soup.select_one(".rich_media_content")
+    if content is None:
+        fallback = _extract_content_noencode(html or "")
+        if fallback:
+            return fallback
+        raise WereadAPIError("api", "invalid_content", "未在页面中找到文章正文")
+    for element in content.select("script, style"):
+        element.decompose()
+    # 微信图片懒加载：真实 URL 在 data-src，静态抓取需回填到 src
+    for img in content.select("img[data-src]"):
+        img["src"] = img["data-src"]
+    return content.decode_contents().strip()
+
+
+def harden_images(html: str) -> str:
+    """给 img 加 referrerpolicy=no-referrer，绕过微信图片防盗链（站内直显）。"""
+    return re.sub(r"<img(?![^>]*referrerpolicy)", '<img referrerpolicy="no-referrer"', html)
+
+
+# 公开文章页里的发布时间戳标记（实测 2026-10 页面三种都存在，值一致）
+_PUBLISH_TIME_PATTERNS = (
+    re.compile(r"var\s+ct\s*=\s*[\"'](\d{9,11})[\"']"),
+    re.compile(r"oriCreateTime\s*=\s*[\"'](\d{9,11})[\"']"),
+    re.compile(r"[\"']create_time[\"']\s*[:=]\s*[\"']?(\d{9,11})"),
+)
+
+
+def extract_publish_time(html: str) -> int:
+    """从公开文章页提取发布时间戳（秒）；识别不了返回 0。"""
+    for pattern in _PUBLISH_TIME_PATTERNS:
+        match = pattern.search(html or "")
+        if match:
+            return int(match.group(1))
+    return 0
+
+
 class WereadClient:
     """带限速与错误映射的微信读书 Web API 客户端（异步）。"""
 
@@ -196,3 +308,54 @@ class WereadClient:
             raise WereadAPIError("api", "empty_cover", "公众号未返回最新文章")
         meta = {"name": payload.get("name", ""), "avatar": payload.get("avatar", "")}
         return cover_to_article(payload, book_id), meta
+
+    async def fetch_content_html(self, review_id: str) -> str:
+        """兜底路径：微信读书代理页正文（依赖 Cookie，比 cover 接口更严格）。"""
+        await self._throttle()
+        try:
+            response = await self._client.get(
+                f"{WEREAD_BASE}/web/mp/content",
+                params={"reviewId": review_id},
+                headers=self._headers(),
+            )
+        except httpx.HTTPError as exc:
+            raise WereadAPIError("network", "network_error", str(exc)) from exc
+        if response.status_code in (401, 499):
+            raise WereadAPIError("auth", response.status_code, "登录态失效或配额耗尽")
+        if response.status_code != 200:
+            raise WereadAPIError("api", response.status_code, f"HTTP {response.status_code}")
+        text = response.text
+        # 该接口业务错误以 HTTP 200 + JSON 返回（如 -2012 登录超时），先嗅探再当 HTML 解析
+        if text.lstrip().startswith("{"):
+            try:
+                payload = response.json()
+                code = payload.get("errCode", payload.get("errcode", 0))
+                if code:
+                    kind = "auth" if int(code) in AUTH_CODES else "api"
+                    raise WereadAPIError(kind, int(code), str(payload.get("errMsg") or code))
+            except ValueError:
+                pass
+        content = extract_mp_content(text)
+        return harden_images(content)
+
+    async def fetch_public_article(self, link: str) -> tuple[str, int]:
+        """主路径：直接抓 mp.weixin.qq.com 公开原文页（无需 Cookie，含完整富文本）。
+
+        返回 (正文 HTML, 发布时间戳)。cover 通道拿不到发布时间，靠这里补。
+        """
+        await self._throttle()
+        try:
+            response = await self._client.get(
+                link,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                },
+            )
+        except httpx.HTTPError as exc:
+            raise WereadAPIError("network", "network_error", str(exc)) from exc
+        if response.status_code != 200:
+            raise WereadAPIError("api", response.status_code, f"HTTP {response.status_code}")
+        content = extract_mp_content(response.text)
+        return harden_images(content), extract_publish_time(response.text)

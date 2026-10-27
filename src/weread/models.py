@@ -52,6 +52,17 @@ class MpArticle(BaseModel):
     created_at: str = Field(default_factory=now_iso)
 
 
+class MpArticleContent(BaseModel):
+    """文章正文（按需抓取，存 HTML；图片已加 referrerpolicy 防盗链处理）。"""
+
+    review_id: str
+    book_id: str
+    title: str = ""
+    content_html: str
+    publish_time: int = 0
+    fetched_at: str = Field(default_factory=now_iso)
+
+
 class CredentialState(BaseModel):
     """微信读书登录凭证（Cookie）。"""
 

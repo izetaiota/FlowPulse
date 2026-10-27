@@ -25,6 +25,7 @@ const menu: MenuItem[] = [
   { index: "/messages", title: "消息中心", icon: "ChatDotRound" },
   { index: "/topics", title: "选题管理", icon: "Calendar" },
   { index: "/materials", title: "素材库", icon: "FolderOpened" },
+  { index: "/weread", title: "公众号订阅", icon: "Reading" },
   { index: "/content/create", title: "内容创作", icon: "EditPen" },
   { index: "/publish", title: "发布任务", icon: "Promotion" },
   {

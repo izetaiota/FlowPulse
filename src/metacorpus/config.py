@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     weread_sync_interval_minutes: int = 120
     # 告警 Webhook（飞书/钉钉机器人地址，空 = 不告警）
     weread_webhook_url: str = ""
+    # RSS 是否输出全文（content:encoded，仅对已抓取过正文的文章生效）
+    weread_rss_full_text: bool = False
 
 
 @lru_cache

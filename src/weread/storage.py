@@ -14,6 +14,7 @@ from pathlib import Path
 from weread.models import (
     CredentialState,
     MpArticle,
+    MpArticleContent,
     MpSubscription,
     now_iso,
 )
@@ -31,8 +32,10 @@ class WereadRepository:
     def __init__(self, data_dir: Path):
         self.root = data_dir / "weread"
         self.articles_root = self.root / "articles"
+        self.contents_root = self.root / "contents"
         self.root.mkdir(parents=True, exist_ok=True)
         self.articles_root.mkdir(parents=True, exist_ok=True)
+        self.contents_root.mkdir(parents=True, exist_ok=True)
 
     # ---- 调度器状态 ----
 
@@ -166,6 +169,18 @@ class WereadRepository:
     def article_count(self, book_id: str) -> int:
         return len(self.list_articles(book_id))
 
+    def set_article_publish_time(self, book_id: str, review_id: str, publish_time: int) -> bool:
+        """回填文章发布时间（cover 通道拿不到，读到原文页后补记）。"""
+        articles = self.list_articles(book_id)
+        for article in articles:
+            if article.review_id == review_id and article.publish_time != publish_time:
+                article.publish_time = publish_time
+                self._write_json(
+                    self._article_path(book_id), [a.model_dump() for a in articles]
+                )
+                return True
+        return False
+
     def refresh_subscription_stats(self, book_id: str, status: str, message: str = "") -> MpSubscription | None:
         sub = self.get_subscription(book_id)
         if not sub:
@@ -175,3 +190,22 @@ class WereadRepository:
         sub.last_error = message
         sub.article_count = self.article_count(book_id)
         return self.upsert_subscription(sub)
+
+    # ---- 文章正文 ----
+
+    def _content_path(self, review_id: str) -> Path:
+        safe = "".join(ch for ch in review_id if ch.isalnum() or ch in "_-")
+        return self.contents_root / f"{safe}.json"
+
+    def get_content(self, review_id: str) -> MpArticleContent | None:
+        data = self._read_json(self._content_path(review_id), None)
+        if not data:
+            return None
+        try:
+            return MpArticleContent.model_validate(data)
+        except ValueError:
+            return None
+
+    def save_content(self, content: MpArticleContent) -> MpArticleContent:
+        self._write_json(self._content_path(content.review_id), content.model_dump())
+        return content

@@ -19,8 +19,22 @@ def _pub_date(article: MpArticle) -> str | None:
         return None
 
 
-def build_rss(title: str, link: str, description: str, articles: list[MpArticle]) -> str:
-    """生成 RSS 2.0 文档。文章应已按时间倒序排好。"""
+def _cdata(text: str) -> str:
+    """CDATA 包裹，内部 ]]> 需拆分转义。"""
+    return "<![CDATA[" + text.replace("]]>", "]]]]><![CDATA[>") + "]]>"
+
+
+def build_rss(
+    title: str,
+    link: str,
+    description: str,
+    articles: list[MpArticle],
+    contents: dict[str, str] | None = None,
+) -> str:
+    """生成 RSS 2.0 文档。文章应已按时间倒序排好。
+
+    contents 提供 review_id → 正文 HTML 时输出 content:encoded 全文项。
+    """
     items: list[str] = []
     for article in articles:
         pub_date = _pub_date(article)
@@ -34,6 +48,10 @@ def build_rss(title: str, link: str, description: str, articles: list[MpArticle]
             item.append(f"<pubDate>{escape(pub_date)}</pubDate>")
         if article.digest:
             item.append(f"<description>{escape(article.digest)}</description>")
+        if contents and article.review_id in contents:
+            item.append(
+                f"<content:encoded>{_cdata(contents[article.review_id])}</content:encoded>"
+            )
         if article.cover:
             escaped_cover = escape(article.cover, _ATTR_ENTITIES)
             item.append(
@@ -44,8 +62,9 @@ def build_rss(title: str, link: str, description: str, articles: list[MpArticle]
 
     now = format_datetime(datetime.now(timezone.utc))
     body = "\n".join(items)
+    xmlns = ' xmlns:content="http://purl.org/rss/1.0/modules/content/"' if contents else ""
     return f"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+<rss version="2.0"{xmlns}>
 <channel>
 <title>{escape(title)}</title>
 <link>{escape(link)}</link>

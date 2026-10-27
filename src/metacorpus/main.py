@@ -106,6 +106,7 @@ def create_app() -> FastAPI:
         weread_repository,
         client,
         request_interval_seconds=settings.weread_request_interval_seconds,
+        rss_full_text=settings.weread_rss_full_text,
     )
     weread_scheduler = WereadScheduler(
         weread_service,

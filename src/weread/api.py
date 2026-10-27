@@ -132,6 +132,22 @@ async def list_articles(
     }
 
 
+@router.get("/api/weread/articles/{book_id}/{review_id}/content")
+async def article_content(
+    book_id: str,
+    review_id: str,
+    service: WereadService = Depends(get_weread_service),
+) -> dict:
+    """站内阅读：正文按需抓取并缓存。"""
+    try:
+        content = await service.get_article_content(book_id, review_id)
+    except WereadAPIError as exc:
+        if exc.code == "not_found":
+            raise HTTPException(status_code=404, detail="文章不存在") from exc
+        raise _translate_error(exc) from exc
+    return content.model_dump()
+
+
 # ---- 同步与总览 ----
 
 
@@ -182,6 +198,11 @@ def _rss_response(xml: str) -> Response:
     return Response(content=xml, media_type="application/rss+xml; charset=utf-8")
 
 
+def _rss_feed(service: WereadService, base: str, title: str, description: str, articles) -> str:
+    contents = service.load_contents(articles) if service.rss_full_text else None
+    return build_rss(title, base, description, articles, contents)
+
+
 @router.get("/api/weread/rss/all.xml")
 async def rss_all(
     request: Request, service: WereadService = Depends(get_weread_service)
@@ -191,9 +212,10 @@ async def rss_all(
     for sub in service.list_subscriptions():
         articles.extend(service.repository.list_articles(sub.book_id))
     articles.sort(key=lambda a: (a.publish_time, a.created_at), reverse=True)
-    xml = build_rss(
-        "心流 FlowPulse · 公众号订阅（全部）",
+    xml = _rss_feed(
+        service,
         base,
+        "心流 FlowPulse · 公众号订阅（全部）",
         "全部订阅公众号文章合并输出",
         articles[:100],
     )
@@ -210,9 +232,10 @@ async def rss_one(
     if not sub:
         raise HTTPException(status_code=404, detail="订阅不存在")
     base = str(request.base_url).rstrip("/")
-    xml = build_rss(
-        f"心流 FlowPulse · {sub.name or book_id}",
+    xml = _rss_feed(
+        service,
         base,
+        f"心流 FlowPulse · {sub.name or book_id}",
         f"公众号「{sub.name or book_id}」最新文章",
         service.repository.list_articles(book_id)[:100],
     )

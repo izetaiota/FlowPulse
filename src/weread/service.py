@@ -6,6 +6,7 @@ import httpx
 
 from weread.client import WereadAPIError, WereadClient
 from weread.models import (
+    MpArticleContent,
     MpSubscription,
     SubscriptionSyncResult,
     SyncSummary,
@@ -21,8 +22,10 @@ class WereadService:
         repository: WereadRepository,
         http_client: httpx.AsyncClient,
         request_interval_seconds: float = 2.0,
+        rss_full_text: bool = False,
     ):
         self.repository = repository
+        self.rss_full_text = rss_full_text
         self.client = WereadClient(
             http_client,
             lambda: (credential.cookie if (credential := self.repository.get_credential()) else ""),
@@ -112,6 +115,65 @@ class WereadService:
         page = articles[start : start + limit]
         next_cursor = page[-1].review_id if page and start + limit < len(articles) else None
         return page, next_cursor
+
+    async def get_article_content(self, book_id: str, review_id: str) -> MpArticleContent:
+        """站内阅读：正文按需抓取，抓过即缓存（不重复请求）。
+
+        抓取顺序：公开原文页（无需 Cookie，富文本完整）→ 微信读书代理页兜底。
+        公开页顺带提取发布时间，回填文章记录（cover 通道的文章没有时间）。
+        """
+        article = next(
+            (a for a in self.repository.list_articles(book_id) if a.review_id == review_id),
+            None,
+        )
+        if not article:
+            raise WereadAPIError("api", "not_found", "文章不存在")
+        cached = self.repository.get_content(review_id)
+        if cached and cached.publish_time > 0:
+            self._backfill_publish_time(article, cached.publish_time)
+            return cached
+
+        content_html = cached.content_html if cached else ""
+        publish_time = cached.publish_time if cached else 0
+        errors: list[str] = []
+        if article.link:
+            try:
+                content_html, publish_time = await self.client.fetch_public_article(article.link)
+            except WereadAPIError as exc:
+                errors.append(f"原文页：{exc.message}")
+        if not content_html:
+            try:
+                self._require_credential()
+                content_html = await self.client.fetch_content_html(review_id)
+            except WereadAPIError as exc:
+                errors.append(f"微信读书：{exc.message}")
+        if not content_html:
+            raise WereadAPIError("api", "content_failed", "；".join(errors) or "正文获取失败")
+        self._backfill_publish_time(article, publish_time)
+        return self.repository.save_content(
+            MpArticleContent(
+                review_id=review_id,
+                book_id=book_id,
+                title=article.title,
+                content_html=content_html,
+                publish_time=publish_time,
+            )
+        )
+
+    def _backfill_publish_time(self, article, publish_time: int) -> None:
+        """把读到的发布时间写回文章记录，列表/RSS 排序与展示用。"""
+        if publish_time > 0 and article.publish_time == 0:
+            article.publish_time = publish_time
+            self.repository.set_article_publish_time(article.book_id, article.review_id, publish_time)
+
+    def load_contents(self, articles: list) -> dict[str, str]:
+        """RSS 全文模式用：批量取已缓存的正文。"""
+        contents: dict[str, str] = {}
+        for article in articles:
+            cached = self.repository.get_content(article.review_id)
+            if cached:
+                contents[article.review_id] = cached.content_html
+        return contents
 
     # ---- 同步 ----
 

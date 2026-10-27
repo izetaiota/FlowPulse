@@ -44,6 +44,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "素材库", icon: "FolderOpened" },
       },
       {
+        path: "weread",
+        name: "weread",
+        component: () => import("@/views/weread/index.vue"),
+        meta: { title: "公众号订阅", icon: "Reading" },
+      },
+      {
         path: "content/create",
         name: "content-create",
         component: () => import("@/views/content/create.vue"),
