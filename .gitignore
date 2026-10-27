@@ -19,3 +19,4 @@ src/xhs_spider/node_modules/
 .coverage
 htmlcov/
 .idea/
+scripts/weread_cookie.txt
