@@ -146,6 +146,8 @@ data/tasks/<task-id>/
 
 上游同步与维护说明：平台算法变化时，从上游拉新版覆盖 `apis/`、`xhs_utils/`、`spider/` 三个目录并重写 import 前缀，`integration/` 集成层一般无需改动。
 
+> ⚠️ 上游 [Spider_XHS](https://github.com/cv-cat/Spider_XHS) 仓库未附带开源许可证，其 README 声明「仅供学习交流使用，禁止任何商业化行为」；本模块请仅用于个人学习与研究，商用前请自行评估合规风险。
+
 ## 工作台前端
 
 `frontend/` 为 Vue 3 + Vite + TypeScript + Element Plus + Pinia + Tailwind CSS 的管理后台骨架，页面模块按 [plan.md](plan.md)「产品功能需求清单」划分：
@@ -204,4 +206,4 @@ data/                运行时数据（任务、订阅、登录态，不入库�
 
 ## License
 
-项目暂未附带开源许可证。公开分发或接受外部贡献前，请补充合适的 `LICENSE` 文件。
+[MIT](LICENSE) © 2026 izetaiota。其中 `src/xhs_spider/` 移植自 [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)，`src/weread/` 采集思路参考 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT，模块内已保留其版权声明）。
