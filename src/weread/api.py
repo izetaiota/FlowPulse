@@ -12,6 +12,8 @@ from weread.models import (
     SubscriptionSyncResult,
     SyncSummary,
 )
+from weread.qrlogin import WereadQrLoginManager
+from weread.refresh import WereadCookieRefresher
 from weread.rss import build_rss
 from weread.scheduler import WereadScheduler
 from weread.service import WereadService
@@ -24,6 +26,14 @@ def get_weread_service() -> WereadService:
 
 
 def get_weread_scheduler() -> WereadScheduler:
+    raise RuntimeError("Dependency override is not configured")
+
+
+def get_weread_qr_login() -> WereadQrLoginManager:
+    raise RuntimeError("Dependency override is not configured")
+
+
+def get_weread_cookie_refresher() -> WereadCookieRefresher:
     raise RuntimeError("Dependency override is not configured")
 
 
@@ -82,6 +92,49 @@ async def validate_credential(service: WereadService = Depends(get_weread_servic
         return await service.validate_current_credential()
     except WereadAPIError as exc:
         raise _translate_error(exc) from exc
+
+
+# ---- 扫码登录 ----
+
+
+@router.post("/api/weread/credential/qr-login")
+async def qr_login_start(
+    qr_login: WereadQrLoginManager = Depends(get_weread_qr_login),
+) -> dict:
+    """弹出本机浏览器窗口，用户微信扫码后自动捕获 Cookie 并校验入库。"""
+    return await qr_login.start()
+
+
+@router.get("/api/weread/credential/qr-login")
+async def qr_login_status(
+    qr_login: WereadQrLoginManager = Depends(get_weread_qr_login),
+) -> dict:
+    return qr_login.status()
+
+
+@router.delete("/api/weread/credential/qr-login")
+async def qr_login_cancel(
+    qr_login: WereadQrLoginManager = Depends(get_weread_qr_login),
+) -> dict:
+    return await qr_login.cancel()
+
+
+# ---- Cookie 自动续期 ----
+
+
+@router.post("/api/weread/credential/refresh")
+async def cookie_refresh(
+    refresher: WereadCookieRefresher = Depends(get_weread_cookie_refresher),
+) -> dict:
+    """手动触发一次无头续期（与每日定时同路径）。"""
+    return await refresher.run_once()
+
+
+@router.get("/api/weread/credential/refresh")
+async def cookie_refresh_status(
+    refresher: WereadCookieRefresher = Depends(get_weread_cookie_refresher),
+) -> dict:
+    return refresher.status()
 
 
 # ---- 订阅 ----

@@ -27,6 +27,14 @@ DEFAULT_SCHEDULER_STATE: dict = {
     "last_result": None,
 }
 
+DEFAULT_COOKIE_REFRESHER_STATE: dict = {
+    "enabled": False,
+    "interval_hours": 0,
+    "running": False,
+    "last_run_at": None,
+    "last_result": None,
+}
+
 
 class WereadRepository:
     def __init__(self, data_dir: Path):
@@ -44,6 +52,16 @@ class WereadRepository:
 
     def save_scheduler_state(self, state: dict) -> None:
         self._write_json(self.root / "scheduler.json", state)
+
+    # ---- Cookie 续期状态 ----
+
+    def load_cookie_refresher_state(self) -> dict:
+        return self._read_json(
+            self.root / "cookie_refresher.json", dict(DEFAULT_COOKIE_REFRESHER_STATE)
+        )
+
+    def save_cookie_refresher_state(self, state: dict) -> None:
+        self._write_json(self.root / "cookie_refresher.json", state)
 
     # ---- 通用原子读写 ----
 

@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     weread_webhook_url: str = ""
     # RSS 是否输出全文（content:encoded，仅对已抓取过正文的文章生效）
     weread_rss_full_text: bool = False
+    # Cookie 自动续期间隔（小时）：无头复用扫码浏览器 profile 静默刷新，0 = 关闭
+    weread_cookie_refresh_hours: int = 24
 
 
 @lru_cache

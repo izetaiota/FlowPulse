@@ -18,8 +18,16 @@ from douyin.transcribers.tingwu import TingwuTranscriber
 from douyin.transcribers.whisper import WhisperTranscriber
 from xhs_spider.integration.routes import get_xhs_service, router as xhs_router
 from xhs_spider.integration.service import XhsService
-from weread.api import get_weread_scheduler, get_weread_service, router as weread_router
+from weread.api import (
+    get_weread_cookie_refresher,
+    get_weread_qr_login,
+    get_weread_scheduler,
+    get_weread_service,
+    router as weread_router,
+)
 from weread.notify import WebhookNotifier
+from weread.qrlogin import WereadQrLoginManager
+from weread.refresh import WereadCookieRefresher
 from weread.scheduler import WereadScheduler
 from weread.service import WereadService
 from weread.storage import WereadRepository
@@ -88,9 +96,12 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         weread_scheduler.start()
+        weread_cookie_refresher.start()
         yield
         await client.aclose()
         await weread_scheduler.stop()
+        await weread_cookie_refresher.stop()
+        await weread_qr_login.aclose()
 
     xhs_service = XhsService(settings.data_dir, proxy=settings.xhs_proxy or None)
 
@@ -114,6 +125,17 @@ def create_app() -> FastAPI:
         notifier=weread_notifier,
         interval_minutes=settings.weread_sync_interval_minutes,
     )
+    weread_qr_login = WereadQrLoginManager(
+        settings.data_dir / "weread" / "browser_profile",
+        on_cookie=weread_service.save_credential,
+    )
+    weread_cookie_refresher = WereadCookieRefresher(
+        weread_qr_login,
+        weread_service,
+        weread_repository,
+        notifier=weread_notifier,
+        interval_hours=settings.weread_cookie_refresh_hours,
+    )
 
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.include_router(router)
@@ -124,11 +146,15 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_xhs_service] = lambda: xhs_service
     app.dependency_overrides[get_weread_service] = lambda: weread_service
     app.dependency_overrides[get_weread_scheduler] = lambda: weread_scheduler
+    app.dependency_overrides[get_weread_qr_login] = lambda: weread_qr_login
+    app.dependency_overrides[get_weread_cookie_refresher] = lambda: weread_cookie_refresher
     app.state.pipeline = pipeline
     app.state.repository = repository
     app.state.xhs_service = xhs_service
     app.state.weread_service = weread_service
     app.state.weread_scheduler = weread_scheduler
+    app.state.weread_qr_login = weread_qr_login
+    app.state.weread_cookie_refresher = weread_cookie_refresher
     return app
 
 

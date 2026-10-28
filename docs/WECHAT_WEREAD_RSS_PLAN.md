@@ -139,10 +139,25 @@ FastAPI /api/weread/* ──► Vue3 前端「公众号订阅」页（复用 fro
 - 验证：57 个测试全通过；真机实测正文 2.3 万字符、12/12 张图片全部加载成功，
   发布时间回填 2026/10/27 17:58:42 并在列表/RSS 生效
 
-### 阶段 5（可选增强）：Cookie 自动续期
+### 阶段 5（可选增强）：Cookie 自动续期 ✅ 2026-10-28 完成
 
-- [ ] **T5.1** 参考其 `core/weread_cookie_refresh.py`："宿主机本机 Chrome + Playwright 每日打开微信读书 reader 页 → 提取最新 Cookie → 写回"，FlowPulse 版本做成 `scripts/refresh_weread_cookie.py`
-- [ ] **T5.2** 若不做自动续期，则依赖"手动粘贴 + 过期告警"，需在阶段 0 实测 wr_skey 实际有效期（社区反馈约数天~数周不等）
+- [x] **扫码登录**（T5.1 前半）：`src/weread/qrlogin.py` —— Playwright 弹本机
+  Chrome（chrome→msedge→chromium 依次回退）打开 `weread.qq.com/#login`（登录页自动弹二维码），
+  轮询浏览器 Cookie 拿到 `wr_vid/wr_skey` 后自动走 `save_credential` 校验入库；
+  持久化 profile（`data/weread/browser_profile`）留存登录态，为自动续期铺路。
+  API：`POST/GET/DELETE /api/weread/credential/qr-login`；前端「扫码登录」按钮 + 状态轮询弹窗。
+  依赖 `pip install -e ".[weread]"`（playwright，用本机 Chrome 时无需下载浏览器）。
+  真机已验证：用户扫码 → Cookie 自动捕获校验入库（书架 30 本，全量恢复）。
+- [x] **T5.1 后半 · 每日自动续期**（2026-10-28）：`src/weread/refresh.py`
+  `WereadCookieRefresher`——默认每 24 小时（`WEREAD_COOKIE_REFRESH_HOURS`，0 关闭）无头复用
+  同一 profile 打开微信读书，服务端轮换 `wr_skey` 后提取最新 Cookie 写回并校验；
+  与扫码窗口通过浏览器锁互斥（同 profile 不能双开）；profile 登录态也失效时标记凭证失效 +
+  Webhook 告警提示重新扫码（重新扫码后 profile 恢复，续期继续生效）。
+  API：`POST/GET /api/weread/credential/refresh`（手动触发/状态）；前端凭证卡「静默续期」按钮 +
+  「Cookie 自动续期」状态行。真机验证：无头提取成功且 `changed=true`（wr_skey 确实被轮换），
+  校验通过；68 个测试全通过。
+- [x] **T5.2**：不做自动续期时的兜底（手动粘贴 + 过期告警）随 T5.1 一并具备；
+  wr_skey 有效期由每日续期兜底（社区反馈数天~数周，续期后无需人工介入）。
 
 ---
 

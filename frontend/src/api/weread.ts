@@ -64,6 +64,36 @@ export interface WereadArticleContent {
   fetched_at: string;
 }
 
+export interface QrLoginStatus {
+  state: "idle" | "pending" | "validating" | "success" | "failed" | "cancelled";
+  message: string;
+  page_url: string;
+  started_at: string | null;
+}
+
+export interface CookieRefreshStatus {
+  enabled: boolean;
+  interval_hours: number;
+  running: boolean;
+  last_run_at: string | null;
+  last_result: {
+    ok?: boolean;
+    reason?: string;
+    message?: string;
+    changed?: boolean;
+    valid?: boolean;
+  } | null;
+  task_alive: boolean;
+}
+
+export interface CookieRefreshResult {
+  ok: boolean;
+  reason: string;
+  message: string;
+  changed?: boolean;
+  valid?: boolean;
+}
+
 const get = <T>(url: string, params?: Record<string, unknown>) =>
   client.get(url, { params }) as unknown as Promise<T>;
 const post = <T>(url: string, body?: unknown) =>
@@ -76,6 +106,11 @@ export const wereadApi = {
     post<CredentialValidateResult>("/weread/credential", { cookie }),
   validateCredential: () => post<CredentialValidateResult>("/weread/credential/validate"),
   deleteCredential: () => del<{ deleted: boolean }>("/weread/credential"),
+  startQrLogin: () => post<QrLoginStatus>("/weread/credential/qr-login"),
+  getQrLoginStatus: () => get<QrLoginStatus>("/weread/credential/qr-login"),
+  cancelQrLogin: () => del<QrLoginStatus>("/weread/credential/qr-login"),
+  refreshCookie: () => post<CookieRefreshResult>("/weread/credential/refresh"),
+  getCookieRefreshStatus: () => get<CookieRefreshStatus>("/weread/credential/refresh"),
 
   listSubscriptions: () => get<WereadSubscription[]>("/weread/subscriptions"),
   addSubscription: (input: string) =>

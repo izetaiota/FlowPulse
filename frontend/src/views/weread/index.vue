@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   wereadApi,
+  type CookieRefreshStatus,
+  type QrLoginStatus,
   type SchedulerStatus,
   type WereadArticle,
   type WereadArticleContent,
@@ -58,6 +60,91 @@ async function validateCredential() {
     await loadCredential();
   } finally {
     validating.value = false;
+  }
+}
+
+// ---- 扫码登录 ----
+const qrDialogVisible = ref(false);
+const qrStatus = ref<QrLoginStatus | null>(null);
+let qrTimer: ReturnType<typeof setInterval> | null = null;
+
+const qrStateTag = computed(() => {
+  const state = qrStatus.value?.state;
+  if (state === "success") return { text: "登录成功", type: "success" as const };
+  if (state === "failed") return { text: "失败", type: "danger" as const };
+  if (state === "cancelled") return { text: "已取消", type: "info" as const };
+  if (state === "validating") return { text: "校验中", type: "warning" as const };
+  return { text: "等待扫码", type: "warning" as const };
+});
+
+function stopQrPolling() {
+  if (qrTimer) {
+    clearInterval(qrTimer);
+    qrTimer = null;
+  }
+}
+
+async function startQrLogin() {
+  qrStatus.value = await wereadApi.startQrLogin();
+  qrDialogVisible.value = true;
+  stopQrPolling();
+  qrTimer = setInterval(pollQrStatus, 2000);
+}
+
+async function pollQrStatus() {
+  try {
+    qrStatus.value = await wereadApi.getQrLoginStatus();
+  } catch {
+    return; // 瞬时网络错误不打断轮询
+  }
+  const state = qrStatus.value.state;
+  if (state === "success") {
+    stopQrPolling();
+    ElMessage.success("扫码登录成功，Cookie 已自动保存");
+    await loadCredential();
+    setTimeout(() => (qrDialogVisible.value = false), 1200);
+  } else if (state === "failed" || state === "cancelled") {
+    stopQrPolling();
+  }
+}
+
+async function cancelQrLogin() {
+  stopQrPolling();
+  await wereadApi.cancelQrLogin();
+  qrDialogVisible.value = false;
+}
+
+function closeQrDialog() {
+  // 用户手动关弹窗：登录会话保留继续跑（浏览器窗口还在），只停轮询
+  stopQrPolling();
+}
+
+onBeforeUnmount(stopQrPolling);
+
+// ---- Cookie 自动续期 ----
+const cookieRefresh = ref<CookieRefreshStatus | null>(null);
+const refreshing = ref(false);
+
+async function loadCookieRefresh() {
+  cookieRefresh.value = await wereadApi.getCookieRefreshStatus();
+}
+
+async function refreshCookieNow() {
+  refreshing.value = true;
+  try {
+    const result = await wereadApi.refreshCookie();
+    if (result.ok) {
+      ElMessage.success(
+        result.changed ? `续期成功，Cookie 已更新（${result.message}）` : `续期成功，Cookie 无变化（${result.message}）`,
+      );
+    } else if (result.reason === "profile_expired") {
+      ElMessage.warning("浏览器登录态已过期，请点击「扫码登录」重新授权");
+    } else {
+      ElMessage.error(`续期失败：${result.message}`);
+    }
+    await Promise.all([loadCredential(), loadCookieRefresh()]);
+  } finally {
+    refreshing.value = false;
   }
 }
 
@@ -221,7 +308,7 @@ function fmtTime(value: string | number | null | undefined): string {
 }
 
 onMounted(async () => {
-  await Promise.all([loadCredential(), loadSubscriptions(), loadScheduler()]);
+  await Promise.all([loadCredential(), loadSubscriptions(), loadScheduler(), loadCookieRefresh()]);
 });
 </script>
 
@@ -325,11 +412,18 @@ onMounted(async () => {
                 <span class="text-xs">{{ credential.last_error }}</span>
               </el-descriptions-item>
             </el-descriptions>
-            <div class="mt-3 flex gap-2">
+            <div class="mt-3 flex flex-wrap gap-2">
+              <el-button size="small" type="primary" @click="startQrLogin">
+                <el-icon class="mr-1"><Iphone /></el-icon>
+                扫码登录
+              </el-button>
               <el-button size="small" :loading="validating" @click="validateCredential">
                 重新校验
               </el-button>
-              <el-button size="small" type="primary" plain @click="cookieDialogVisible = true">
+              <el-button size="small" :loading="refreshing" @click="refreshCookieNow">
+                静默续期
+              </el-button>
+              <el-button size="small" plain @click="cookieDialogVisible = true">
                 更新 Cookie
               </el-button>
             </div>
@@ -337,7 +431,13 @@ onMounted(async () => {
 
           <template v-else>
             <el-empty :image-size="80" description="尚未配置微信读书 Cookie">
-              <el-button type="primary" @click="cookieDialogVisible = true">粘贴 Cookie</el-button>
+              <div class="flex gap-2">
+                <el-button type="primary" @click="startQrLogin">
+                  <el-icon class="mr-1"><Iphone /></el-icon>
+                  扫码登录
+                </el-button>
+                <el-button @click="cookieDialogVisible = true">手动粘贴 Cookie</el-button>
+              </div>
             </el-empty>
           </template>
         </el-card>
@@ -361,6 +461,21 @@ onMounted(async () => {
                   每 {{ scheduler.interval_minutes }} 分钟
                 </el-tag>
                 <el-tag v-else type="info" size="small">已关闭</el-tag>
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-500">Cookie 自动续期</span>
+              <span class="flex items-center gap-1">
+                <el-tag v-if="cookieRefresh?.enabled" type="success" size="small">
+                  每 {{ cookieRefresh.interval_hours }} 小时
+                </el-tag>
+                <el-tag v-else type="info" size="small">已关闭</el-tag>
+                <el-tooltip
+                  v-if="cookieRefresh?.last_run_at"
+                  :content="`上次续期 ${fmtTime(cookieRefresh.last_run_at)}${cookieRefresh.last_result?.message ? '：' + cookieRefresh.last_result.message : ''}`"
+                >
+                  <el-icon class="text-gray-400"><InfoFilled /></el-icon>
+                </el-tooltip>
               </span>
             </div>
             <div class="flex items-center justify-between">
@@ -495,6 +610,39 @@ onMounted(async () => {
         </div>
       </div>
     </el-drawer>
+
+    <!-- 扫码登录状态对话框 -->
+    <el-dialog
+      v-model="qrDialogVisible"
+      title="微信读书 · 扫码登录"
+      width="460px"
+      :close-on-click-modal="false"
+      @close="closeQrDialog"
+    >
+      <div class="space-y-4">
+        <div class="flex items-center gap-2">
+          <el-tag :type="qrStateTag.type" size="large" round>{{ qrStateTag.text }}</el-tag>
+          <span
+            v-if="['pending', 'validating'].includes(qrStatus?.state || '')"
+            class="text-sm text-gray-400"
+          >
+            <el-icon class="mr-1 align-middle is-loading"><Loading /></el-icon>
+          </span>
+        </div>
+        <div class="text-sm leading-6">{{ qrStatus?.message || "正在启动…" }}</div>
+        <el-alert type="info" :closable="false">
+          已在服务器所在电脑弹出浏览器窗口，二维码在窗口里。用手机微信「扫一扫」确认登录即可，
+          全程无需手动复制 Cookie。
+        </el-alert>
+        <div v-if="qrStatus?.state === 'failed'" class="flex gap-2">
+          <el-button size="small" type="primary" @click="startQrLogin">重试</el-button>
+          <el-button size="small" @click="cancelQrLogin">取消会话</el-button>
+        </div>
+        <el-button v-else-if="['pending', 'validating'].includes(qrStatus?.state || '')" size="small" @click="cancelQrLogin">
+          取消扫码
+        </el-button>
+      </div>
+    </el-dialog>
 
     <!-- Cookie 设置对话框 -->
     <el-dialog v-model="cookieDialogVisible" title="微信读书 Cookie" width="560px">
