@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     # --- WeRead（微信公众号 RSS 采集通道）---
     # 微信读书 Cookie（wr_vid=...; wr_skey=... 整串）；也可用 API 端点动态保存
     weread_cookie: str = ""
+    # Cookie 静态加密密钥（Fernet，base64 urlsafe 32 字节）；空 = 自动生成并保存到 data/weread/.credential_key
+    weread_credential_key: str = ""
     # 微信读书请求最小间隔（秒），防频率限制
     weread_request_interval_seconds: float = 2.0
     # 定时同步间隔（分钟），0 = 关闭内置调度

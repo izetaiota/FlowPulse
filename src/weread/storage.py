@@ -37,13 +37,14 @@ DEFAULT_COOKIE_REFRESHER_STATE: dict = {
 
 
 class WereadRepository:
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path, credential_key: str = ""):
         self.root = data_dir / "weread"
         self.articles_root = self.root / "articles"
         self.contents_root = self.root / "contents"
         self.root.mkdir(parents=True, exist_ok=True)
         self.articles_root.mkdir(parents=True, exist_ok=True)
         self.contents_root.mkdir(parents=True, exist_ok=True)
+        self._cipher = self._init_credential_cipher(credential_key)
 
     # ---- 调度器状态 ----
 
@@ -84,13 +85,55 @@ class WereadRepository:
 
     # ---- 凭证 ----
 
+    def _init_credential_cipher(self, credential_key: str):
+        """Cookie 静态加密（Fernet）：优先用外部密钥，其次 data 目录内密钥文件。
+
+        未安装 cryptography 时降级为明文存储（功能不受影响，仅静态保护缺失）。
+        """
+        try:
+            from cryptography.fernet import Fernet
+        except ImportError:
+            return None
+        key = (credential_key or "").strip()
+        if key:
+            return Fernet(key.encode())  # 外部密钥非法时直接报错，避免静默降级
+        key_path = self.root / ".credential_key"
+        try:
+            key = key_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            key = Fernet.generate_key().decode()
+            key_path.write_text(key, encoding="utf-8")
+        return Fernet(key.encode())
+
+    def _seal(self, payload: dict) -> dict:
+        if self._cipher and payload.get("cookie"):
+            payload = dict(payload)
+            payload["cookie"] = self._cipher.encrypt(payload["cookie"].encode()).decode()
+            payload["cookie_encrypted"] = True
+        return payload
+
+    def _unseal(self, data) -> dict | None:
+        if not data:
+            return None
+        if not data.get("cookie_encrypted"):
+            return data  # 旧版明文，读取不受影响，下次保存自动升级为加密
+        if not self._cipher:
+            return None  # 密钥不可用（丢失/更换），凭证无法解密
+        try:
+            data = dict(data)
+            data["cookie"] = self._cipher.decrypt(data["cookie"].encode()).decode()
+        except Exception:
+            return None
+        data.pop("cookie_encrypted", None)
+        return data
+
     def save_credential(self, cookie: str) -> CredentialState:
         state = CredentialState(cookie=cookie.strip())
-        self._write_json(self.root / "credential.json", state.model_dump())
+        self._write_json(self.root / "credential.json", self._seal(state.model_dump()))
         return state
 
     def get_credential(self) -> CredentialState | None:
-        data = self._read_json(self.root / "credential.json", None)
+        data = self._unseal(self._read_json(self.root / "credential.json", None))
         if not data:
             return None
         try:
@@ -99,7 +142,7 @@ class WereadRepository:
             return None
 
     def update_credential(self, state: CredentialState) -> None:
-        self._write_json(self.root / "credential.json", state.model_dump())
+        self._write_json(self.root / "credential.json", self._seal(state.model_dump()))
 
     def delete_credential(self) -> bool:
         path = self.root / "credential.json"
@@ -148,6 +191,11 @@ class WereadRepository:
         self._write_json(
             self.root / "subscriptions.json", [s.model_dump() for s in remaining]
         )
+        # 文章列表与已抓正文缓存一并清理，避免遗留孤儿文件
+        for article in self.list_articles(book_id):
+            content_path = self._content_path(article.review_id)
+            if content_path.is_file():
+                content_path.unlink()
         path = self._article_path(book_id)
         if path.is_file():
             path.unlink()

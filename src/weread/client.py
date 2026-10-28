@@ -34,6 +34,8 @@ USER_AGENT = (
 
 AUTH_CODES = {-2010, -2012, -2014, -2041}
 RATE_LIMIT_CODES = {200013}
+# 触发频率限制（200013）后的全局冷却时间：冷却期内直接拒绝请求，不再打接口
+RATE_LIMIT_COOLDOWN_SECONDS = 600.0
 CODE_GUIDE = {
     -2010: "需重新扫码登录",
     -2012: "Cookie 已失效，请重新粘贴",
@@ -234,6 +236,7 @@ class WereadClient:
         self._cookie_provider = cookie_provider
         self._interval = max(0.0, request_interval_seconds)
         self._last_request_monotonic = 0.0
+        self._rate_limited_until = 0.0
         self._lock = asyncio.Lock()
 
     # ---- 基础请求 ----
@@ -250,9 +253,19 @@ class WereadClient:
         }
 
     async def _throttle(self) -> None:
-        """微信读书有频率限制，请求之间保持最小间隔（加随机抖动）。"""
+        """微信读书有频率限制，请求之间保持最小间隔（加随机抖动）。
+
+        触发过 200013 后进入冷却期：期间不再发请求，直接抛错让上层记录/告警。
+        """
         async with self._lock:
             now = time.monotonic()
+            cooldown_remaining = self._rate_limited_until - now
+            if cooldown_remaining > 0:
+                raise WereadAPIError(
+                    "rate_limit",
+                    "cooldown",
+                    f"频率限制冷却中，约 {int(cooldown_remaining)} 秒后自动恢复",
+                )
             wait = self._last_request_monotonic + self._interval - now
             if wait > 0:
                 await asyncio.sleep(wait + random.uniform(0, min(1.0, self._interval / 2)))
@@ -281,6 +294,8 @@ class WereadClient:
             code = 0
         if code != 0:
             kind = "auth" if code in AUTH_CODES else "rate_limit" if code in RATE_LIMIT_CODES else "api"
+            if kind == "rate_limit":
+                self._rate_limited_until = time.monotonic() + RATE_LIMIT_COOLDOWN_SECONDS
             message = CODE_GUIDE.get(code) or str(payload.get("errMsg") or payload.get("errmsg") or code)
             raise WereadAPIError(kind, code, message)
         return payload

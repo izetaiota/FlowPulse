@@ -109,7 +109,9 @@ def create_app() -> FastAPI:
 
     xhs_service = XhsService(settings.data_dir, proxy=settings.xhs_proxy or None)
 
-    weread_repository = WereadRepository(settings.data_dir)
+    weread_repository = WereadRepository(
+        settings.data_dir, credential_key=settings.weread_credential_key
+    )
     if settings.weread_cookie and not weread_repository.get_credential():
         weread_repository.save_credential(settings.weread_cookie)
     weread_notifier = (

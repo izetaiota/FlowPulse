@@ -95,17 +95,24 @@ docker compose up -d --build
 
 ### 使用流程
 
-1. 浏览器登录微信读书网页版，复制 Cookie；
-2. 保存凭证：`POST /api/weread/credential`（或 `.env` 中 `WEREAD_COOKIE`，服务启动时自动导入）；
+1. **扫码授权（推荐）**：前端 `/weread` 页面点「扫码登录」（或 `POST /api/weread/credential/qr-login`），
+   服务器所在电脑会弹出浏览器窗口显示微信读书登录二维码，手机微信扫码确认后 Cookie 自动捕获、校验、入库；
+2. 也可手动粘贴 Cookie：浏览器登录微信读书网页版后复制 Cookie，`POST /api/weread/credential` 保存
+   （或 `.env` 中 `WEREAD_COOKIE`，服务启动时自动导入）；
 3. 添加订阅：`POST /api/weread/subscriptions`，请求体 `{"input": "<微信读书链接或bookId>"}`，会自动反查公众号名称头像并入库最新一篇；
 4. 手动全量同步：`POST /api/weread/sync`；此后由内置调度器定时增量同步；
 5. 在 RSS 阅读器订阅输出，或在工作台前端 `/weread` 页面管理全部流程。
+
+> 扫码/续期依赖 Playwright 驱动本机浏览器：`pip install -e ".[weread]"`（优先复用本机已装的 Chrome/Edge，无需下载浏览器）。
+> 历史文章说明：微信读书列表接口对部分账号已废弃，此类账号走 cover 通道**只能从订阅时的最新一篇开始追新**，无法批量回补历史。
 
 ### API 一览
 
 | 分组 | 接口 |
 | --- | --- |
 | 凭证 | `POST /api/weread/credential`（保存）、`GET`（查看脱敏状态）、`DELETE`、`POST /api/weread/credential/validate`（即时校验有效性） |
+| 扫码登录 | `POST /api/weread/credential/qr-login`（弹出浏览器窗口扫码）、`GET`（会话状态轮询）、`DELETE`（取消） |
+| Cookie 续期 | `POST /api/weread/credential/refresh`（手动无头续期一次）、`GET`（续期调度状态与上次结果） |
 | 订阅 | `GET /api/weread/subscriptions`、`POST`（添加）、`DELETE /api/weread/subscriptions/{book_id}` |
 | 文章 | `GET /api/weread/subscriptions/{book_id}/articles`（游标分页）、`GET /api/weread/articles/{book_id}/{review_id}/content`（站内阅读，正文按需抓取并缓存） |
 | 同步 | `POST /api/weread/sync`（全部）、`POST /api/weread/subscriptions/{book_id}/sync`（单个）、`GET /api/weread/status`（凭证与各订阅健康状态） |
@@ -115,14 +122,16 @@ docker compose up -d --build
 ### 配置项
 
 ```env
-WEREAD_COOKIE=                        # 启动时导入的微信读书 Cookie（可选，也可走 API）
+WEREAD_COOKIE=                        # 启动时导入的微信读书 Cookie（可选，也可走 API/扫码）
+WEREAD_CREDENTIAL_KEY=                # Cookie 静态加密密钥（Fernet）；空 = 自动生成并保存到 data/weread/.credential_key
 WEREAD_REQUEST_INTERVAL_SECONDS=2.0   # 对微信读书接口的限速间隔
 WEREAD_SYNC_INTERVAL_MINUTES=120      # 定时同步周期；<=0 关闭内置调度
-WEREAD_WEBHOOK_URL=                   # 告警 Webhook（飞书/钉钉群机器人），Cookie 失效、同步失败时推送
+WEREAD_COOKIE_REFRESH_HOURS=24        # Cookie 无头自动续期周期（复用扫码浏览器登录态）；<=0 关闭
+WEREAD_WEBHOOK_URL=                   # 告警 Webhook（飞书/钉钉群机器人），Cookie 失效、同步失败、需重新扫码时推送
 WEREAD_RSS_FULL_TEXT=false            # RSS 是否输出全文（默认仅标题+链接+摘要）
 ```
 
-数据保存在 `data/weread/`（订阅、文章、正文缓存、调度状态，文件型存储）。Cookie 有效期约数天到数周，过期时可通过 `status` 接口发现并触发 Webhook 告警，重新复制 Cookie 保存即可。
+数据保存在 `data/weread/`（订阅、文章、正文缓存、调度状态、浏览器登录态 profile，文件型存储）。Cookie 在磁盘上以 Fernet 加密保存（密钥见 `WEREAD_CREDENTIAL_KEY`），有效期内由每日无头续期自动轮换 `wr_skey`；登录态彻底失效时会标记凭证失效并推送 Webhook，到页面重新扫码一次即恢复（扫码后 profile 留存，续期继续自动转）。
 
 > 微信读书接口为非官方通道，本项目按"个人私有化使用 + 限速 + 过期告警"设计，请勿高频大量拉取。迁移决策与技术细节见 [docs/WECHAT_WEREAD_RSS_PLAN.md](docs/WECHAT_WEREAD_RSS_PLAN.md)。
 
