@@ -131,7 +131,7 @@ WEREAD_WEBHOOK_URL=                   # 告警 Webhook（飞书/钉钉群机器�
 WEREAD_RSS_FULL_TEXT=false            # RSS 是否输出全文（默认仅标题+链接+摘要）
 ```
 
-数据保存在 `data/weread/`（订阅、文章、正文缓存、调度状态、浏览器登录态 profile，文件型存储）。Cookie 在磁盘上以 Fernet 加密保存（密钥见 `WEREAD_CREDENTIAL_KEY`），有效期内由每日无头续期自动轮换 `wr_skey`；登录态彻底失效时会标记凭证失效并推送 Webhook，到页面重新扫码一次即恢复（扫码后 profile 留存，续期继续自动转）。
+数据保存在 `data/weread/`（订阅、文章、正文缓存、调度状态、浏览器登录态 profile，文件型存储）。Cookie 在磁盘上以 Fernet 加密保存（密钥见 `WEREAD_CREDENTIAL_KEY`），有效期内由每日无头续期自动轮换 `wr_skey`；登录态彻底失效时会标记凭证失效并推送 Webhook，到页面重新扫码一次即恢复（扫码后 profile 留存，续期继续自动转）。同步过程中检测到 Cookie 被其他端轮换失效时，会自动触发一次无头续期并重试（15 分钟冷却），无需人工干预；删除凭证会同时清除浏览器登录态 profile，不残留可复原的登录态。服务重启后，超期的同步/续期任务会在启动时自动补跑。
 
 > 微信读书接口为非官方通道，本项目按"个人私有化使用 + 限速 + 过期告警"设计，请勿高频大量拉取。迁移决策与技术细节见 [docs/WECHAT_WEREAD_RSS_PLAN.md](docs/WECHAT_WEREAD_RSS_PLAN.md)。
 

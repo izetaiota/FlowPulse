@@ -52,6 +52,17 @@ class MpArticle(BaseModel):
     created_at: str = Field(default_factory=now_iso)
 
 
+def article_sort_key(article: MpArticle) -> float:
+    """排序用有效时间：优先发布时间；未回填（cover 通道初始为 0）的用入库时间兜底，
+    避免最新文章在时间回填前沉底。"""
+    if article.publish_time > 0:
+        return float(article.publish_time)
+    try:
+        return datetime.fromisoformat(article.created_at).timestamp()
+    except ValueError:
+        return 0.0
+
+
 class MpArticleContent(BaseModel):
     """文章正文（按需抓取，存 HTML；图片已加 referrerpolicy 防盗链处理）。"""
 

@@ -142,6 +142,10 @@ def create_app() -> FastAPI:
         notifier=weread_notifier,
         interval_hours=settings.weread_cookie_refresh_hours,
     )
+    # 同步遇 Cookie 失效时自动无头续期（自愈）；仅在启用续期调度时挂接
+    # （WEREAD_COOKIE_REFRESH_HOURS=0 的场景——如无桌面的容器——不会意外拉起浏览器）
+    if settings.weread_cookie_refresh_hours > 0:
+        weread_service.attach_self_heal(weread_cookie_refresher.run_once)
 
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.include_router(router)

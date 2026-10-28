@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -93,6 +94,17 @@ class WereadQrLoginManager:
     async def aclose(self) -> None:
         """应用关停时调用，避免遗留浏览器进程。"""
         await self.cancel()
+
+    async def clear_profile(self) -> bool:
+        """清除浏览器登录态 profile。
+
+        删除凭证时联动调用：否则每日续期会从 profile 重新提取 Cookie，把凭证"复活"。
+        """
+        async with self._browser_lock:
+            if not self._profile_dir.exists():
+                return False
+            shutil.rmtree(self._profile_dir, ignore_errors=True)
+            return True
 
     async def capture_cookie_headless(self) -> str:
         """无头续期：用持久化 profile 静默打开微信读书，提取当前登录 Cookie。

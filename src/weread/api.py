@@ -11,6 +11,7 @@ from weread.models import (
     SubscriptionCreateRequest,
     SubscriptionSyncResult,
     SyncSummary,
+    article_sort_key,
 )
 from weread.qrlogin import WereadQrLoginManager
 from weread.refresh import WereadCookieRefresher
@@ -82,8 +83,14 @@ async def credential_status(service: WereadService = Depends(get_weread_service)
 
 
 @router.delete("/api/weread/credential")
-async def delete_credential(service: WereadService = Depends(get_weread_service)) -> dict:
-    return {"deleted": service.repository.delete_credential()}
+async def delete_credential(
+    service: WereadService = Depends(get_weread_service),
+    qr_login: WereadQrLoginManager = Depends(get_weread_qr_login),
+) -> dict:
+    deleted = service.repository.delete_credential()
+    # 同时清除浏览器登录态，否则每日续期会从 profile 重新提取 Cookie"复活"凭证
+    profile_cleared = await qr_login.clear_profile()
+    return {"deleted": deleted, "profile_cleared": profile_cleared}
 
 
 @router.post("/api/weread/credential/validate")
@@ -264,7 +271,7 @@ async def rss_all(
     articles = []
     for sub in service.list_subscriptions():
         articles.extend(service.repository.list_articles(sub.book_id))
-    articles.sort(key=lambda a: (a.publish_time, a.created_at), reverse=True)
+    articles.sort(key=article_sort_key, reverse=True)
     xml = _rss_feed(
         service,
         base,

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+import time
+
 import httpx
 
 from weread.client import WereadAPIError, WereadClient
@@ -14,6 +17,16 @@ from weread.models import (
     now_iso,
 )
 from weread.storage import WereadRepository
+
+# Cookie 失效自愈（触发无头续期）的冷却时间，防止多订阅连环拉起浏览器
+SELF_HEAL_COOLDOWN_SECONDS = 900.0
+
+
+def _digest_from_html(html: str, limit: int = 120) -> str:
+    """从正文 HTML 提取纯文本摘要（cover 通道不带 digest，读到正文后补）。"""
+    text = re.sub(r"<[^>]+>", " ", html or "")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit]
 
 
 class WereadService:
@@ -31,6 +44,25 @@ class WereadService:
             lambda: (credential.cookie if (credential := self.repository.get_credential()) else ""),
             request_interval_seconds,
         )
+        self._self_heal = None
+        self._self_heal_until = 0.0
+
+    def attach_self_heal(self, heal) -> None:
+        """注入自愈回调（main 装配时指向 Cookie 无头续期），同步遇登录失效时自动触发。"""
+        self._self_heal = heal
+
+    async def _try_self_heal(self) -> bool:
+        heal = self._self_heal
+        if not heal:
+            return False
+        if time.monotonic() < self._self_heal_until:
+            return False
+        self._self_heal_until = time.monotonic() + SELF_HEAL_COOLDOWN_SECONDS
+        try:
+            result = await heal()
+        except Exception:  # noqa: BLE001 - 自愈失败不影响同步主流程
+            return False
+        return bool(result.get("ok"))
 
     def _require_credential(self) -> str:
         state = self.repository.get_credential()
@@ -131,6 +163,7 @@ class WereadService:
         cached = self.repository.get_content(review_id)
         if cached and cached.publish_time > 0:
             self._backfill_publish_time(article, cached.publish_time)
+            self._backfill_digest(article, cached.content_html)
             return cached
 
         content_html = cached.content_html if cached else ""
@@ -150,6 +183,7 @@ class WereadService:
         if not content_html:
             raise WereadAPIError("api", "content_failed", "；".join(errors) or "正文获取失败")
         self._backfill_publish_time(article, publish_time)
+        self._backfill_digest(article, content_html)
         return self.repository.save_content(
             MpArticleContent(
                 review_id=review_id,
@@ -165,6 +199,15 @@ class WereadService:
         if publish_time > 0 and article.publish_time == 0:
             article.publish_time = publish_time
             self.repository.set_article_publish_time(article.book_id, article.review_id, publish_time)
+
+    def _backfill_digest(self, article, content_html: str) -> None:
+        """把正文首段摘要写回文章记录（RSS description 用）。"""
+        if article.digest:
+            return
+        digest = _digest_from_html(content_html)
+        if digest:
+            article.digest = digest
+            self.repository.set_article_digest(article.book_id, article.review_id, digest)
 
     def load_contents(self, articles: list) -> dict[str, str]:
         """RSS 全文模式用：批量取已缓存的正文。"""
@@ -201,33 +244,37 @@ class WereadService:
         try:
             articles = await self.client.fetch_articles(book_id)
         except WereadAPIError as exc:
-            if exc.kind == "auth":
-                # 列表接口在该账号已废弃（-2041）时回退 cover 增量
-                try:
-                    article, _ = await self.client.fetch_cover(book_id)
-                    articles, note = [article], "（列表接口不可用，cover 增量）"
-                except WereadAPIError as cover_exc:
+            if exc.kind != "auth":
+                self.repository.refresh_subscription_stats(book_id, "error", exc.message)
+                return SubscriptionSyncResult(
+                    book_id=book_id,
+                    name=name,
+                    status="error",
+                    total_articles=self.repository.article_count(book_id),
+                    message=exc.message,
+                )
+            # 列表接口对该账号可能已废弃（恒 -2041）：回退 cover 增量
+            try:
+                article, _ = await self.client.fetch_cover(book_id)
+                articles, note = [article], "（列表接口不可用，cover 增量）"
+            except WereadAPIError as cover_exc:
+                if cover_exc.kind == "auth" and await self._try_self_heal():
+                    # Cookie 被其他端轮换失效 → 自动无头续期成功 → 重试一次
+                    try:
+                        article, _ = await self.client.fetch_cover(book_id)
+                        articles, note = [article], "（Cookie 已自动续期，cover 增量）"
+                    except WereadAPIError:
+                        pass
+                if not articles:
                     status = "auth_error" if cover_exc.kind == "auth" else "error"
                     self.repository.refresh_subscription_stats(book_id, status, cover_exc.message)
                     return SubscriptionSyncResult(
-                        book_id=book_id, name=name, status=status,
+                        book_id=book_id,
+                        name=name,
+                        status=status,
                         total_articles=self.repository.article_count(book_id),
                         message=cover_exc.message,
                     )
-            elif exc.kind == "rate_limit":
-                self.repository.refresh_subscription_stats(book_id, "error", exc.message)
-                return SubscriptionSyncResult(
-                    book_id=book_id, name=name, status="error",
-                    total_articles=self.repository.article_count(book_id),
-                    message=exc.message,
-                )
-            else:
-                self.repository.refresh_subscription_stats(book_id, "error", exc.message)
-                return SubscriptionSyncResult(
-                    book_id=book_id, name=name, status="error",
-                    total_articles=self.repository.article_count(book_id),
-                    message=exc.message,
-                )
         new_count = self.repository.upsert_articles(book_id, articles)
         self.repository.refresh_subscription_stats(book_id, "ok", note)
         return SubscriptionSyncResult(

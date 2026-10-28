@@ -36,6 +36,8 @@ AUTH_CODES = {-2010, -2012, -2014, -2041}
 RATE_LIMIT_CODES = {200013}
 # 触发频率限制（200013）后的全局冷却时间：冷却期内直接拒绝请求，不再打接口
 RATE_LIMIT_COOLDOWN_SECONDS = 600.0
+# 公开文章页大小上限（实测约 3.5MB，留足余量），流式读取防异常超大页撑爆内存
+PUBLIC_PAGE_MAX_BYTES = 20 * 1024 * 1024
 CODE_GUIDE = {
     -2010: "需重新扫码登录",
     -2012: "Cookie 已失效，请重新粘贴",
@@ -357,20 +359,35 @@ class WereadClient:
         """主路径：直接抓 mp.weixin.qq.com 公开原文页（无需 Cookie，含完整富文本）。
 
         返回 (正文 HTML, 发布时间戳)。cover 通道拿不到发布时间，靠这里补。
+        流式读取并限制大小，异常超大页面直接放弃。
         """
         await self._throttle()
         try:
-            response = await self._client.get(
+            async with self._client.stream(
+                "GET",
                 link,
                 headers={
                     "User-Agent": USER_AGENT,
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
                 },
-            )
+            ) as response:
+                if response.status_code != 200:
+                    raise WereadAPIError("api", response.status_code, f"HTTP {response.status_code}")
+                declared = response.headers.get("content-length", "")
+                if declared.isdigit() and int(declared) > PUBLIC_PAGE_MAX_BYTES:
+                    raise WereadAPIError(
+                        "api", "too_large", f"文章页过大（{int(declared) // 1048576}MB），已跳过"
+                    )
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in response.aiter_bytes():
+                    total += len(chunk)
+                    if total > PUBLIC_PAGE_MAX_BYTES:
+                        raise WereadAPIError("api", "too_large", "文章页超过大小上限，已跳过")
+                    chunks.append(chunk)
+                html = b"".join(chunks).decode(response.encoding or "utf-8", errors="replace")
         except httpx.HTTPError as exc:
             raise WereadAPIError("network", "network_error", str(exc)) from exc
-        if response.status_code != 200:
-            raise WereadAPIError("api", response.status_code, f"HTTP {response.status_code}")
-        content = extract_mp_content(response.text)
-        return harden_images(content), extract_publish_time(response.text)
+        content = extract_mp_content(html)
+        return harden_images(content), extract_publish_time(html)

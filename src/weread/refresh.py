@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
+from datetime import datetime, timedelta, timezone
 
 from weread.models import now_iso
 from weread.notify import WebhookNotifier
@@ -55,13 +56,32 @@ class WereadCookieRefresher:
             self._task = None
 
     async def _loop(self) -> None:
-        # 先等一个周期再跑，避免启动时立刻拉起浏览器
+        # 从未跑过：先等一个完整周期；已超期（如服务重启导致计时重置）：立即补跑
+        delay = self._seconds_until_due()
+        if delay > 0:
+            await asyncio.sleep(delay)
         while True:
-            await asyncio.sleep(self.interval_hours * 3600)
             try:
                 await self.run_once()
             except Exception:  # noqa: BLE001 - 后台循环不允许中断
-                continue
+                pass
+            await asyncio.sleep(self.interval_hours * 3600)
+
+    def _seconds_until_due(self) -> float:
+        interval = self.interval_hours * 3600.0
+        state = self.repository.load_cookie_refresher_state()
+        last = state.get("last_run_at")
+        if not last:
+            return interval
+        try:
+            last_dt = datetime.fromisoformat(last)
+        except (TypeError, ValueError):
+            return interval
+        remaining = (
+            last_dt + timedelta(seconds=interval) - datetime.now(timezone.utc)
+        ).total_seconds()
+        # 上限封顶，防止时钟异常导致长时间休眠
+        return max(0.0, min(remaining, interval))
 
     # ---- 状态 ----
 
@@ -90,17 +110,19 @@ class WereadCookieRefresher:
     async def _refresh(self) -> dict:
         try:
             cookie = await self.qr_login.capture_cookie_headless()
-        except RuntimeError as exc:
-            return {"ok": False, "reason": "browser_error", "message": str(exc)}
+        except Exception as exc:  # 浏览器/网络等一切异常都归为 browser_error，不外抛 500
+            return {"ok": False, "reason": "browser_error", "message": str(exc)[:200]}
 
         if not cookie:
-            # profile 登录态失效：标记凭证失效，提示重新扫码
             credential = self.repository.get_credential()
-            if credential:
-                credential.valid = False
-                credential.last_error = "浏览器登录态已过期，请到工作台重新扫码"
-                credential.last_validated_at = now_iso()
-                self.repository.update_credential(credential)
+            if not credential:
+                # 用户主动删除过凭证（profile 已一并清除）：静默跳过，不告警不打扰
+                return {"ok": False, "reason": "no_credential", "message": "未配置凭证，跳过续期"}
+            # profile 登录态失效：标记凭证失效，提示重新扫码
+            credential.valid = False
+            credential.last_error = "浏览器登录态已过期，请到工作台重新扫码"
+            credential.last_validated_at = now_iso()
+            self.repository.update_credential(credential)
             if self.notifier:
                 await self.notifier.send(
                     "weread_cookie_refresh",

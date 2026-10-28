@@ -21,6 +21,7 @@ def make_settings(tmp_path: Path) -> Settings:
         data_dir=tmp_path,
         transcribe_engine="mock",
         weread_request_interval_seconds=0,
+        weread_cookie_refresh_hours=0,
     )
 
 

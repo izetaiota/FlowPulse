@@ -24,6 +24,7 @@ def make_settings(tmp_path: Path, **overrides) -> Settings:
         weread_request_interval_seconds=0,
         weread_sync_interval_minutes=0,
         weread_webhook_url="",
+        weread_cookie_refresh_hours=0,
     )
     defaults.update(overrides)
     return Settings(**defaults)

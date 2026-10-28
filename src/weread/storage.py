@@ -16,6 +16,7 @@ from weread.models import (
     MpArticle,
     MpArticleContent,
     MpSubscription,
+    article_sort_key,
     now_iso,
 )
 
@@ -215,7 +216,7 @@ class WereadRepository:
                 articles.append(MpArticle.model_validate(item))
             except ValueError:
                 continue
-        articles.sort(key=lambda a: (a.publish_time, a.review_id), reverse=True)
+        articles.sort(key=article_sort_key, reverse=True)
         return articles
 
     def upsert_articles(self, book_id: str, incoming: list[MpArticle]) -> int:
@@ -226,11 +227,26 @@ class WereadRepository:
         if not fresh:
             return 0
         merged = existing + fresh
-        merged.sort(key=lambda a: (a.publish_time, a.review_id), reverse=True)
+        merged.sort(key=article_sort_key, reverse=True)
         self._write_json(
             self._article_path(book_id), [a.model_dump() for a in merged]
         )
         return len(fresh)
+
+    def set_article_digest(self, book_id: str, review_id: str, digest: str) -> bool:
+        """回填文章摘要（cover 通道不带摘要，读到正文后补，供 RSS description 用）。"""
+        digest = (digest or "").strip()
+        if not digest:
+            return False
+        articles = self.list_articles(book_id)
+        for article in articles:
+            if article.review_id == review_id and article.digest != digest:
+                article.digest = digest
+                self._write_json(
+                    self._article_path(book_id), [a.model_dump() for a in articles]
+                )
+                return True
+        return False
 
     def article_count(self, book_id: str) -> int:
         return len(self.list_articles(book_id))

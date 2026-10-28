@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import suppress
+from datetime import datetime, timedelta, timezone
 
 from weread.client import WereadAPIError
 from weread.models import now_iso
@@ -46,13 +47,32 @@ class WereadScheduler:
             self._task = None
 
     async def _loop(self) -> None:
-        # 先等一个周期再跑，避免启动时立即请求微信读书
+        # 从未跑过：先等一个完整周期（避免启动即请求微信读书）；已超期则立即补跑
+        delay = self._seconds_until_due()
+        if delay > 0:
+            await asyncio.sleep(delay)
         while True:
-            await asyncio.sleep(self.interval_minutes * 60)
             try:
                 await self.run_once()
             except Exception:  # noqa: BLE001 - 后台循环不允许中断
-                continue
+                pass
+            await asyncio.sleep(self.interval_minutes * 60)
+
+    def _seconds_until_due(self) -> float:
+        interval = self.interval_minutes * 60.0
+        state = self.repository.load_scheduler_state()
+        last = state.get("last_run_at")
+        if not last:
+            return interval
+        try:
+            last_dt = datetime.fromisoformat(last)
+        except (TypeError, ValueError):
+            return interval
+        remaining = (
+            last_dt + timedelta(seconds=interval) - datetime.now(timezone.utc)
+        ).total_seconds()
+        # 上限封顶，防止时钟异常导致长时间休眠
+        return max(0.0, min(remaining, interval))
 
     # ---- 状态 ----
 
