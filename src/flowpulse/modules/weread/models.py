@@ -22,7 +22,17 @@ def normalize_book_id(raw: str) -> str:
     text = (raw or "").strip()
     match = re.search(r"(MP_WXS_[A-Za-z0-9]+)", text)
     if not match:
-        raise ValueError("无法从输入中识别公众号 bookId（形如 MP_WXS_xxxxxxxx）")
+        # App 分享链接（book-detail?...&v=...）里 bookId 以 hex 编码藏在 v 参数中，
+        # 形如 4d505f5758535f(=MP_WXS_) 后跟数字的 hex（0x30-0x39 → "3x"）
+        hex_match = re.search(r"4d505f5758535f((?:3[0-9]){4,15})", text)
+        if hex_match:
+            return "MP_WXS_" + bytes.fromhex(hex_match.group(1)).decode()
+    if not match:
+        raise ValueError(
+            "无法识别公众号 bookId：需要粘贴微信读书里该公众号的链接或 bookId（MP_WXS_数字）。"
+            "注意：公众号文章链接（mp.weixin.qq.com/s/...）不能用于订阅，"
+            "请在微信读书 App 或网页版打开该公众号后复制其页面链接"
+        )
     return match.group(1)
 
 

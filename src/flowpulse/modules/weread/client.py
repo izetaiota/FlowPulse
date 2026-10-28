@@ -391,3 +391,52 @@ class WereadClient:
             raise WereadAPIError("network", "network_error", str(exc)) from exc
         content = extract_mp_content(html)
         return harden_images(content), extract_publish_time(html)
+
+    async def fetch_article_account(self, link: str) -> dict:
+        """从公众号文章页（无需 Cookie）提取公众号名称，用于"粘贴文章链接订阅"。"""
+        await self._throttle()
+        try:
+            async with self._client.stream(
+                "GET",
+                link,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                },
+            ) as response:
+                if response.status_code != 200:
+                    raise WereadAPIError("api", response.status_code, f"HTTP {response.status_code}")
+                # 名称节点（#js_name / var nickname）在页面靠后位置，需读全页（约 3.5MB）
+                html = (await response.aread()).decode(
+                    response.encoding or "utf-8", errors="replace"
+                )
+        except httpx.HTTPError as exc:
+            raise WereadAPIError("network", "network_error", str(exc)) from exc
+        name = ""
+        match = re.search(r'var nickname = ["\']([^"\']+)["\']', html)
+        if match:
+            name = match.group(1).strip()
+        if not name:
+            soup = BeautifulSoup(html, "html.parser")
+            node = soup.select_one("#js_name") or soup.select_one(".profile_nickname")
+            if node:
+                name = node.get_text(strip=True)
+        if not name:
+            raise WereadAPIError("api", "no_account_name", "未能从文章页识别公众号名称")
+        return {"name": name}
+
+    async def search_accounts(self, word: str) -> list[dict]:
+        """微信读书搜公众号（web/search/global），返回含 MP_WXS_ 的书籍条目。
+
+        实测 2026-10：该接口比书架更严，普通 Cookie 恒 -2012；调用方需做好降级。
+        """
+        payload = await self._get_json(
+            "/web/search/global", {"word": word, "maxCnt": 10}
+        )
+        hits = []
+        for book in payload.get("books", []) or []:
+            book_id = str(book.get("bookId", ""))
+            if book_id.startswith("MP_WXS_"):
+                hits.append({"book_id": book_id, "title": book.get("title", "")})
+        return hits

@@ -200,11 +200,15 @@ def test_articles_auth_error_falls_back_to_cover(tmp_path: Path, monkeypatch):
         assert cover_route.called
 
 
+@respx.mock
 def test_add_subscription_rejects_bad_input(tmp_path: Path, monkeypatch):
+    """任意文本现在按公众号名称处理：搜索不可用/未命中 → 422 引导补充微信读书链接。"""
     monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
+    respx.get("https://weread.qq.com/web/search/global").respond(json={"errCode": -2012})
     with TestClient(create_app()) as client:
         response = client.post("/api/weread/subscriptions", json={"input": "随便什么"})
-        assert response.status_code == 400
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == "need_weread_link"
 
 
 @respx.mock

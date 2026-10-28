@@ -22,6 +22,15 @@ from flowpulse.modules.weread.storage import WereadRepository
 SELF_HEAL_COOLDOWN_SECONDS = 900.0
 
 
+class NeedWereadLinkError(Exception):
+    """已识别公众号名称，但需要用户补充该公众号在微信读书里的链接/bookId。"""
+
+    def __init__(self, name: str, message: str):
+        super().__init__(message)
+        self.name = name
+        self.message = message
+
+
 def _digest_from_html(html: str, limit: int = 120) -> str:
     """从正文 HTML 提取纯文本摘要（cover 通道不带 digest，读到正文后补）。"""
     text = re.sub(r"<[^>]+>", " ", html or "")
@@ -115,8 +124,17 @@ class WereadService:
     # ---- 订阅 ----
 
     async def add_subscription(self, raw_input: str) -> MpSubscription:
-        """粘贴 bookId / 微信读书链接添加订阅，用 cover 接口反查名称头像。"""
-        book_id = normalize_book_id(raw_input)
+        """添加订阅：支持微信读书链接/bookId、公众号文章链接、公众号名称。
+
+        文章链接会先提取公众号名称，再尝试微信读书搜索自动定位 bookId；
+        搜索接口不可用（实测对该账号恒 -2012）或未命中时抛 NeedWereadLinkError，
+        由前端弹出向导引导用户补充微信读书链接。
+        """
+        text = (raw_input or "").strip()
+        try:
+            book_id = normalize_book_id(text)
+        except ValueError:
+            book_id = await self._resolve_book_id_from_text(text)
         self._require_credential()
         existing = self.repository.get_subscription(book_id)
         if existing:
@@ -131,6 +149,31 @@ class WereadService:
         # 顺手把最新一篇入库，订阅即有内容
         self.repository.upsert_articles(book_id, [article])
         return self.repository.refresh_subscription_stats(book_id, "ok") or sub
+
+    async def _resolve_book_id_from_text(self, text: str) -> str:
+        """文章链接 → 公众号名称；或直接把输入当名称 → 微信读书搜索定位 bookId。"""
+        name = text
+        if "http" in text or "www." in text:
+            if "mp.weixin.qq.com" not in text:
+                raise ValueError("链接暂不支持：请粘贴微信读书公众号链接或 mp.weixin.qq.com 文章链接")
+            account = await self.client.fetch_article_account(text)
+            name = account.get("name", "")
+        if not name:
+            raise ValueError("请粘贴微信读书公众号链接、公众号文章链接或公众号名称")
+        try:
+            hits = await self.client.search_accounts(name)
+        except WereadAPIError as exc:
+            raise NeedWereadLinkError(
+                name, f"公众号只能在手机微信读书 App 中搜索：请在 App 里找到「{name}」，复制其链接后粘贴完成订阅"
+            ) from exc
+        for hit in hits:
+            if hit.get("title") == name:
+                return hit["book_id"]
+        if len(hits) == 1:
+            return hits[0]["book_id"]
+        raise NeedWereadLinkError(
+            name, f"未能自动定位「{name}」，请在手机微信读书 App 中打开该公众号并复制链接完成订阅"
+        )
 
     def list_subscriptions(self) -> list[MpSubscription]:
         return self.repository.list_subscriptions()

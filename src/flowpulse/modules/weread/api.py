@@ -15,6 +15,7 @@ from flowpulse.modules.weread.models import (
 from flowpulse.modules.weread.qrlogin import WereadQrLoginManager
 from flowpulse.modules.weread.refresh import WereadCookieRefresher
 from flowpulse.modules.weread.rss import build_rss
+from flowpulse.modules.weread.service import NeedWereadLinkError
 from flowpulse.modules.weread.scheduler import WereadScheduler
 from flowpulse.modules.weread.service import WereadService
 
@@ -157,6 +158,12 @@ async def add_subscription(
 ) -> MpSubscription:
     try:
         sub = await service.add_subscription(request.input)
+    except NeedWereadLinkError as exc:
+        # 已识别公众号但缺微信读书链接：结构化返回，前端弹订阅向导
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "need_weread_link", "name": exc.name, "message": exc.message},
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except WereadAPIError as exc:

@@ -158,9 +158,20 @@ async function loadSubscriptions() {
   subscriptions.value = await wereadApi.listSubscriptions();
 }
 
+// ---- 订阅向导：文章链接/名称识别后，引导补充微信读书链接 ----
+const wizardVisible = ref(false);
+const wizardName = ref("");
+const wizardInput = ref("");
+
+function openWizard(name: string) {
+  wizardName.value = name;
+  wizardInput.value = "";
+  wizardVisible.value = true;
+}
+
 async function addSubscription() {
   if (!newSubscriptionInput.value.trim()) {
-    ElMessage.warning("请粘贴公众号 bookId 或微信读书链接");
+    ElMessage.warning("粘贴公众号文章链接 / 名称 / 微信读书链接均可");
     return;
   }
   adding.value = true;
@@ -168,10 +179,31 @@ async function addSubscription() {
     const sub = await wereadApi.addSubscription(newSubscriptionInput.value.trim());
     ElMessage.success(`已订阅：${sub.name || sub.book_id}`);
     newSubscriptionInput.value = "";
+    wizardVisible.value = false;
     await loadSubscriptions();
+  } catch (error: unknown) {
+    const response = (error as { response?: { status?: number; data?: { detail?: unknown } } })?.response;
+    const detail = response?.data?.detail;
+    // 已识别公众号但需要补充微信读书链接 → 弹向导
+    if (response?.status === 422 && (detail as { code?: string })?.code === "need_weread_link") {
+      openWizard((detail as { name?: string }).name || "");
+      return;
+    }
+    const message = typeof detail === "string" ? detail : "订阅失败，请检查输入";
+    ElMessage.error({ message, duration: 6000 });
   } finally {
     adding.value = false;
   }
+}
+
+async function submitWizard() {
+  if (!wizardInput.value.trim()) {
+    ElMessage.warning("请粘贴该公众号在微信读书里的链接或 bookId");
+    return;
+  }
+  // 复用主流程：向导输入的是微信读书链接/bookId，正常路径可直接订阅
+  newSubscriptionInput.value = wizardInput.value.trim();
+  await addSubscription();
 }
 
 async function removeSubscription(sub: WereadSubscription) {
@@ -504,7 +536,7 @@ onMounted(async () => {
           <div class="flex w-full max-w-md gap-2 sm:w-auto">
             <el-input
               v-model="newSubscriptionInput"
-              placeholder="粘贴 MP_WXS_xxx 或微信读书公众号链接"
+              placeholder="粘贴公众号文章链接 / 名称 / MP_WXS_xxx 均可订阅"
               clearable
               @keyup.enter="addSubscription"
             />
@@ -610,6 +642,23 @@ onMounted(async () => {
         </div>
       </div>
     </el-drawer>
+
+    <!-- 订阅向导：已识别公众号，引导补充微信读书链接 -->
+    <el-dialog v-model="wizardVisible" title="完成订阅" width="480px">
+      <div class="space-y-4">
+        <el-alert type="success" :closable="false">
+          已识别公众号：<b>「{{ wizardName }}」</b>，还差最后一步——补充它在微信读书里的链接。
+        </el-alert>
+        <div class="text-sm leading-7 text-gray-600">
+          公众号只能在<b>手机微信读书 App</b> 里搜索（网页版不收录）：<br />
+          1. 打开微信读书 App，搜索 <b>{{ wizardName }}</b><br />
+          2. 进入该公众号主页 → 右上角「⋯」→ 复制链接<br />
+          3. 粘贴到下方完成订阅
+        </div>
+        <el-input v-model="wizardInput" placeholder="https://weread.qq.com/...MP_WXS_xxx... 或 MP_WXS_xxx" clearable @keyup.enter="submitWizard" />
+        <el-button class="w-full" type="primary" :loading="adding" @click="submitWizard">完成订阅</el-button>
+      </div>
+    </el-dialog>
 
     <!-- 扫码登录状态对话框 -->
     <el-dialog
