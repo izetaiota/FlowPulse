@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # 数据库连接（PostgreSQL）：postgresql+psycopg://user:pass@host:5432/flowpulse
     # 空 = 文件存储（零依赖默认）；设置后 weread 等模块切换到数据库存储
     database_url: str = ""
+    # Web 登录（单账号，无菜单权限）：ADMIN_PASSWORD 为空 = 鉴权关闭（本地直通）
+    admin_username: str = "admin"
+    admin_password: str = ""
     transcribe_engine: str = "mock"
     max_download_bytes: int = 500 * 1024 * 1024
     request_timeout_seconds: float = 30

@@ -82,6 +82,12 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    path: "/login",
+    name: "login",
+    component: () => import("@/views/login/index.vue"),
+    meta: { title: "登录", public: true },
+  },
+  {
     path: "/:pathMatch(.*)*",
     redirect: "/dashboard",
   },
@@ -90,6 +96,26 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+// 登录守卫：后端启用鉴权（ADMIN_PASSWORD）且未登录时，全部页面跳登录页
+router.beforeEach(async (to) => {
+  const { useAuthStore } = await import("@/stores/auth");
+  const auth = useAuthStore();
+  if (!auth.loaded) {
+    try {
+      await auth.loadSession();
+    } catch {
+      auth.loaded = true; // 探测失败不阻塞页面（后端未启动时保持可浏览）
+    }
+  }
+  if (auth.enabled && !auth.token && !to.meta.public) {
+    return { name: "login", query: { redirect: to.fullPath } };
+  }
+  if (to.name === "login" && auth.isLoggedIn) {
+    return { path: "/" };
+  }
+  return true;
 });
 
 router.afterEach((to) => {

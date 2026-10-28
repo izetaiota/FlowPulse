@@ -90,6 +90,17 @@ docker compose up -d --build
 - 镜像内置 FFmpeg（抖音音频提取）与 Node.js（小红书签名运行时）；因包含 opencv 等依赖，镜像体积约 1.5 GB。
 - 扫码登录类功能（微信读书扫码续期、XHS 扫码登录）需要驱动本机可见浏览器，容器内不可用，请在容器内使用 Cookie 方式配置凭证。
 
+## Web 登录（单账号）
+
+工作台支持单账号登录（无菜单权限体系，V1 面向单人使用）：
+
+- **默认关闭**：不设置 `ADMIN_PASSWORD` 时无登录页、所有接口直通（本地零配置体验不变）；
+- **启用**：设置环境变量 `ADMIN_USERNAME`（默认 `admin`）与 `ADMIN_PASSWORD` 后，前端出现登录页，
+  全部 API 需携带 Bearer Token（登录后自动注入，7 天有效期，服务重启不失效）；
+- RSS 阅读器等无法带 Header 的客户端可用查询参数：`/api/weread/rss/all.xml?token=<登录token>`；
+  `/health/*` 探活接口不锁；Token 由服务端 HMAC 签名（密钥自动生成于 `data/.auth_secret`）；
+- 退出：右上角用户菜单「退出登录」。
+
 ## 公众号订阅 RSS（微信读书通道）
 
 `src/flowpulse/modules/weread/` 基于 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT）的微信读书通道思路实现，是把公众号内容收进 FlowPulse 的第一步：**订阅公众号 → 定时增量同步 → 站内浏览 / RSS 输出**。

@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 from flowpulse.config import get_settings
+from flowpulse.core.auth import init_auth, require_auth
+from flowpulse.core.auth import router as auth_router
 from flowpulse.core.notify import WebhookNotifier
 from flowpulse.modules.douyin.api.routes import get_pipeline, get_repository, router
 from flowpulse.modules.douyin.resolvers.api import ApiResolver
@@ -163,10 +165,14 @@ def create_app() -> FastAPI:
     if settings.weread_cookie_refresh_hours > 0:
         weread_service.attach_self_heal(weread_cookie_refresher.run_once)
 
+    init_auth(settings.admin_username, settings.admin_password, settings.data_dir)
+
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
-    app.include_router(router)
-    app.include_router(xhs_router)
-    app.include_router(weread_router)
+    # 登录/会话接口免鉴权；业务路由在配置 ADMIN_PASSWORD 后统一要求 Bearer Token
+    app.include_router(auth_router)
+    app.include_router(router, dependencies=[Depends(require_auth)])
+    app.include_router(xhs_router, dependencies=[Depends(require_auth)])
+    app.include_router(weread_router, dependencies=[Depends(require_auth)])
     app.dependency_overrides[get_pipeline] = lambda: pipeline
     app.dependency_overrides[get_repository] = lambda: repository
     app.dependency_overrides[get_xhs_service] = lambda: xhs_service
