@@ -20,3 +20,6 @@ extension/dist/
 htmlcov/
 .idea/
 scripts/weread_cookie.txt
+
+# 内部规划文档，不入库
+plan.md
