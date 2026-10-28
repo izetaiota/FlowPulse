@@ -5,13 +5,13 @@ from pathlib import Path
 import httpx
 from fastapi.testclient import TestClient
 
-from metacorpus.config import Settings
-from metacorpus.main import create_app
-from weread.api import get_weread_cookie_refresher
-from weread.qrlogin import WereadQrLoginManager
-from weread.refresh import WereadCookieRefresher
-from weread.service import WereadService
-from weread.storage import WereadRepository
+from flowpulse.config import Settings
+from flowpulse.main import create_app
+from flowpulse.modules.weread.api import get_weread_cookie_refresher
+from flowpulse.modules.weread.qrlogin import WereadQrLoginManager
+from flowpulse.modules.weread.refresh import WereadCookieRefresher
+from flowpulse.modules.weread.service import WereadService
+from flowpulse.modules.weread.storage import WereadRepository
 
 BOOK_ID = "MP_WXS_3012726261"
 
@@ -146,7 +146,7 @@ def test_capture_headless_blocked_while_qr_running(tmp_path: Path):
 
 
 def test_refresh_api_endpoint(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     app = create_app()
 
     class FakeRefresher:

@@ -7,16 +7,16 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from metacorpus.config import Settings
-from metacorpus.main import create_app
-from weread.client import (
+from flowpulse.config import Settings
+from flowpulse.main import create_app
+from flowpulse.modules.weread.client import (
     WereadAPIError,
     extract_mp_content,
     extract_publish_time,
     harden_images,
 )
-from weread.models import MpArticle
-from weread.rss import build_rss
+from flowpulse.modules.weread.models import MpArticle
+from flowpulse.modules.weread.rss import build_rss
 
 WEREAD = "https://weread.qq.com"
 BOOK_ID = "MP_WXS_3012726261"
@@ -97,7 +97,7 @@ def test_extract_publish_time_variants():
 
 @respx.mock
 def test_article_content_fetch_and_cache(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": []})
     respx.get(f"{WEREAD}/api/mp/cover").respond(
         json={"name": "测试号", "reviewId": f"{BOOK_ID}_c1", "title": "封面篇", "pic": "", "avatar": ""}
@@ -135,7 +135,7 @@ def test_article_content_fetch_and_cache(tmp_path: Path, monkeypatch):
 @respx.mock
 def test_article_content_refetch_when_cache_missing_time(tmp_path: Path, monkeypatch):
     """老缓存（无发布时间）会在下次阅读时补抓原文页一次，拿到时间后不再请求。"""
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": []})
     respx.get(f"{WEREAD}/api/mp/cover").respond(
         json={"name": "测试号", "reviewId": f"{BOOK_ID}_c1", "title": "封面篇", "pic": "", "avatar": ""}

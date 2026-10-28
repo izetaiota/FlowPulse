@@ -1,6 +1,6 @@
 import json
 
-from douyin.resolvers.share_page import (
+from flowpulse.modules.douyin.resolvers.share_page import (
     extract_douyin_url,
     extract_router_data,
     find_video_payload,

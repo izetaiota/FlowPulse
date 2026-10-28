@@ -8,9 +8,9 @@ import httpx
 import pytest
 import respx
 
-from weread.client import WereadAPIError, WereadClient
-from weread.models import MpArticle, MpArticleContent, MpSubscription
-from weread.storage import WereadRepository
+from flowpulse.modules.weread.client import WereadAPIError, WereadClient
+from flowpulse.modules.weread.models import MpArticle, MpArticleContent, MpSubscription
+from flowpulse.modules.weread.storage import WereadRepository
 
 WEREAD = "https://weread.qq.com"
 

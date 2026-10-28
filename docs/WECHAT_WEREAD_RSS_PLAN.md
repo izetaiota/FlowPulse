@@ -54,7 +54,7 @@
 微信读书网页版（人工订阅公众号）
         │ Cookie（wr_vid / wr_skey）
         ▼
-FlowPulse src/weread/ 模块（本计划新增）
+FlowPulse src/flowpulse/modules/weread/ 模块（本计划新增）
   ├─ client.py      httpx 封装微信读书 Web API + 错误码映射 + 限速退避
   ├─ collector.py   同步流程：公众号列表 → 增量文章 → 入库
   ├─ models.py      MPAccount（订阅）/ MPArticle（文章）/ 凭证存储
@@ -65,7 +65,7 @@ FlowPulse src/weread/ 模块（本计划新增）
 FastAPI /api/weread/* ──► Vue3 前端「公众号订阅」页（复用 frontend/ 骨架）
 ```
 
-- 技术栈与现有 `src/douyin` 模块保持一致（FastAPI + httpx + BeautifulSoup，httpx/bs4 已在依赖里）；
+- 技术栈与现有 `src/flowpulse/modules/douyin` 模块保持一致（FastAPI + httpx + BeautifulSoup，httpx/bs4 已在依赖里）；
 - 数据库沿用项目现有存储方案；
 - ~~凭证加密存储对齐 plan.md「account_token 授权凭证加密表」设计~~ ✅ 2026-10-28 实现：
   Fernet 静态加密（密钥 `WEREAD_CREDENTIAL_KEY`，空则自动生成 `data/weread/.credential_key`），
@@ -87,7 +87,7 @@ FastAPI /api/weread/* ──► Vue3 前端「公众号订阅」页（复用 fro
 
 ### 阶段 1：采集模块 + 凭证管理 ✅ 2026-10-27 完成
 
-- [x] **T1.1** `src/weread/` 模块：`models.py`（MpSubscription/MpArticle/CredentialState）、
+- [x] **T1.1** `src/flowpulse/modules/weread/` 模块：`models.py`（MpSubscription/MpArticle/CredentialState）、
   `storage.py`（JSON 文件存储：credential.json / subscriptions.json / articles/<book_id>.json）
 - [x] **T1.2** `client.py`：httpx 异步客户端，错误码映射（auth/rate_limit/api/network）、
   最小请求间隔限速（默认 2s + 抖动）、articles → cover 自动降级
@@ -143,14 +143,14 @@ FastAPI /api/weread/* ──► Vue3 前端「公众号订阅」页（复用 fro
 
 ### 阶段 5（可选增强）：Cookie 自动续期 ✅ 2026-10-28 完成
 
-- [x] **扫码登录**（T5.1 前半）：`src/weread/qrlogin.py` —— Playwright 弹本机
+- [x] **扫码登录**（T5.1 前半）：`src/flowpulse/modules/weread/qrlogin.py` —— Playwright 弹本机
   Chrome（chrome→msedge→chromium 依次回退）打开 `weread.qq.com/#login`（登录页自动弹二维码），
   轮询浏览器 Cookie 拿到 `wr_vid/wr_skey` 后自动走 `save_credential` 校验入库；
   持久化 profile（`data/weread/browser_profile`）留存登录态，为自动续期铺路。
   API：`POST/GET/DELETE /api/weread/credential/qr-login`；前端「扫码登录」按钮 + 状态轮询弹窗。
   依赖 `pip install -e ".[weread]"`（playwright，用本机 Chrome 时无需下载浏览器）。
   真机已验证：用户扫码 → Cookie 自动捕获校验入库（书架 30 本，全量恢复）。
-- [x] **T5.1 后半 · 每日自动续期**（2026-10-28）：`src/weread/refresh.py`
+- [x] **T5.1 后半 · 每日自动续期**（2026-10-28）：`src/flowpulse/modules/weread/refresh.py`
   `WereadCookieRefresher`——默认每 24 小时（`WEREAD_COOKIE_REFRESH_HOURS`，0 关闭）无头复用
   同一 profile 打开微信读书，服务端轮换 `wr_skey` 后提取最新 Cookie 写回并校验；
   与扫码窗口通过浏览器锁互斥（同 profile 不能双开）；profile 登录态也失效时标记凭证失效 +

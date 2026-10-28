@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from douyin.models import Transcript, VideoInfo
-from douyin.resolvers.router import ResolverRouter
-from douyin.transcribers.router import TranscriberRouter
+from flowpulse.modules.douyin.models import Transcript, VideoInfo
+from flowpulse.modules.douyin.resolvers.router import ResolverRouter
+from flowpulse.modules.douyin.transcribers.router import TranscriberRouter
 
 
 class FailingResolver:

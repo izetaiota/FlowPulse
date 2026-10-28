@@ -2,11 +2,11 @@ from pathlib import Path
 
 import httpx
 
-from douyin.models import TaskRecord, TaskStatus, TranscribeRequest, VideoInfo
-from douyin.services.pipeline import PipelineService
-from douyin.storage.tasks import TaskRepository
-from douyin.transcribers.mock import MockTranscriber
-from douyin.transcribers.router import TranscriberRouter
+from flowpulse.modules.douyin.models import TaskRecord, TaskStatus, TranscribeRequest, VideoInfo
+from flowpulse.modules.douyin.services.pipeline import PipelineService
+from flowpulse.modules.douyin.storage.tasks import TaskRepository
+from flowpulse.modules.douyin.transcribers.mock import MockTranscriber
+from flowpulse.modules.douyin.transcribers.router import TranscriberRouter
 
 
 class FakeResolver:
@@ -49,8 +49,8 @@ async def test_pipeline_completes(tmp_path: Path, monkeypatch):
         audio_path.write_bytes(b"audio")
         return audio_path
 
-    monkeypatch.setattr("douyin.services.pipeline.download_media", fake_download)
-    monkeypatch.setattr("douyin.services.pipeline.extract_audio", fake_extract)
+    monkeypatch.setattr("flowpulse.modules.douyin.services.pipeline.download_media", fake_download)
+    monkeypatch.setattr("flowpulse.modules.douyin.services.pipeline.extract_audio", fake_extract)
 
     repository = TaskRepository(tmp_path)
     async with httpx.AsyncClient() as client:
@@ -83,7 +83,7 @@ async def test_pipeline_uses_embedded_subtitles_without_download(tmp_path: Path,
     async def fail_download(*args, **kwargs):
         raise AssertionError("download should not run when embedded subtitles exist")
 
-    monkeypatch.setattr("douyin.services.pipeline.download_media", fail_download)
+    monkeypatch.setattr("flowpulse.modules.douyin.services.pipeline.download_media", fail_download)
 
     repository = TaskRepository(tmp_path)
     async with httpx.AsyncClient() as client:
@@ -117,8 +117,8 @@ async def test_pipeline_cleans_temporary_media_after_failure(tmp_path: Path, mon
         audio_path.write_bytes(b"audio")
         return audio_path
 
-    monkeypatch.setattr("douyin.services.pipeline.download_media", fake_download)
-    monkeypatch.setattr("douyin.services.pipeline.extract_audio", fake_extract)
+    monkeypatch.setattr("flowpulse.modules.douyin.services.pipeline.download_media", fake_download)
+    monkeypatch.setattr("flowpulse.modules.douyin.services.pipeline.extract_audio", fake_extract)
 
     repository = TaskRepository(tmp_path)
     async with httpx.AsyncClient() as client:

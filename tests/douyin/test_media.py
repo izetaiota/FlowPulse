@@ -1,6 +1,6 @@
 import pytest
 
-from douyin.services.media import ensure_public_http_url
+from flowpulse.modules.douyin.services.media import ensure_public_http_url
 
 
 def test_rejects_private_media_url():

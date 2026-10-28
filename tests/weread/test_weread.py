@@ -6,11 +6,15 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from metacorpus.config import Settings
-from metacorpus.main import create_app
-from weread.client import build_mp_url, link_from_review_id, parse_articles_payload
-from weread.models import MpArticle
-from weread.storage import WereadRepository
+from flowpulse.config import Settings
+from flowpulse.main import create_app
+from flowpulse.modules.weread.client import (
+    build_mp_url,
+    link_from_review_id,
+    parse_articles_payload,
+)
+from flowpulse.modules.weread.models import MpArticle
+from flowpulse.modules.weread.storage import WereadRepository
 
 WEREAD = "https://weread.qq.com"
 BOOK_ID = "MP_WXS_3012726261"
@@ -82,7 +86,7 @@ def test_repository_upsert_dedup(tmp_path: Path):
 
 @respx.mock
 def test_credential_and_subscription_flow(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": [{"bookId": "1"}, {"bookId": "2"}]})
     respx.get(f"{WEREAD}/api/mp/cover").respond(
         json={
@@ -131,7 +135,7 @@ def test_credential_and_subscription_flow(tmp_path: Path, monkeypatch):
 
 @respx.mock
 def test_sync_dedup(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": []})
     respx.get(f"{WEREAD}/api/mp/cover").respond(
         json={"name": "测试号", "reviewId": f"{BOOK_ID}_cover1", "title": "t", "pic": "", "avatar": ""}
@@ -177,7 +181,7 @@ def test_sync_dedup(tmp_path: Path, monkeypatch):
 
 @respx.mock
 def test_articles_auth_error_falls_back_to_cover(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": []})
     cover_route = respx.get(f"{WEREAD}/api/mp/cover").respond(
         json={"name": "测试号", "reviewId": f"{BOOK_ID}_c1", "title": "t", "pic": "", "avatar": ""}
@@ -197,7 +201,7 @@ def test_articles_auth_error_falls_back_to_cover(tmp_path: Path, monkeypatch):
 
 
 def test_add_subscription_rejects_bad_input(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     with TestClient(create_app()) as client:
         response = client.post("/api/weread/subscriptions", json={"input": "随便什么"})
         assert response.status_code == 400
@@ -205,7 +209,7 @@ def test_add_subscription_rejects_bad_input(tmp_path: Path, monkeypatch):
 
 @respx.mock
 def test_auth_error_maps_to_401(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"errCode": -2012, "errMsg": "timeout"})
 
     with TestClient(create_app()) as client:
@@ -225,7 +229,7 @@ def test_auth_error_maps_to_401(tmp_path: Path, monkeypatch):
 @respx.mock
 def test_validate_falls_back_to_cover_when_shelf_restricted(tmp_path: Path, monkeypatch):
     """书架接口比 cover 严格：书架 -2012 但 cover 可用时，凭证应判为有效。"""
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     # 第一次 shelf（保存凭证时校验）：无订阅阶段，返回空书架
     shelf_route = respx.get(f"{WEREAD}/web/shelf/sync")
     shelf_route.side_effect = [

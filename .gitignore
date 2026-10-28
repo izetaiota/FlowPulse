@@ -14,7 +14,7 @@ data/
 dist/
 extension/node_modules/
 extension/dist/
-src/xhs_spider/node_modules/
+**/node_modules/
 *.egg-info/
 .coverage
 htmlcov/

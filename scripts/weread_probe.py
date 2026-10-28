@@ -1,6 +1,6 @@
 """微信读书通道可行性验证脚本（公众号订阅 RSS · 阶段 0 / T0.2）。
 
-目的：在正式开发 `src/weread/` 采集模块前，用最小代价验证「微信读书 Web 接口
+目的：在正式开发 `src/flowpulse/modules/weread/` 采集模块前，用最小代价验证「微信读书 Web 接口
 采集公众号文章」这条路在你的账号上确实跑得通：
 
   Cookie → cover 接口拉最新文章 → 还原 `~`→`_` 拼原文链接 → 链接可打开
@@ -35,7 +35,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import random
 import sys

@@ -1,5 +1,5 @@
-from douyin.models import VideoInfo
-from douyin.services.embedded_subtitles import extract_embedded_transcript
+from flowpulse.modules.douyin.models import VideoInfo
+from flowpulse.modules.douyin.services.embedded_subtitles import extract_embedded_transcript
 
 
 def test_extracts_video_text_segments():

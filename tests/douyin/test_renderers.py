@@ -1,5 +1,5 @@
-from douyin.models import Transcript, TranscriptSegment, VideoInfo
-from douyin.renderers.artifacts import render_markdown, render_srt
+from flowpulse.modules.douyin.models import Transcript, TranscriptSegment, VideoInfo
+from flowpulse.modules.douyin.renderers.artifacts import render_markdown, render_srt
 
 
 def test_srt_rendering():

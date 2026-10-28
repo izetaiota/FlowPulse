@@ -1,7 +1,7 @@
 """二轮加固测试：自愈续期、删凭证清 profile、启动补跑、排序兜底、摘要回填、抓取上限。"""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -9,14 +9,14 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from metacorpus.config import Settings
-from metacorpus.main import create_app
-from weread.client import WereadAPIError, WereadClient
-from weread.models import MpArticle, MpSubscription, now_iso
-from weread.refresh import WereadCookieRefresher
-from weread.scheduler import WereadScheduler
-from weread.service import WereadService
-from weread.storage import WereadRepository
+from flowpulse.config import Settings
+from flowpulse.main import create_app
+from flowpulse.modules.weread.client import WereadAPIError, WereadClient
+from flowpulse.modules.weread.models import MpArticle, MpSubscription
+from flowpulse.modules.weread.refresh import WereadCookieRefresher
+from flowpulse.modules.weread.scheduler import WereadScheduler
+from flowpulse.modules.weread.service import WereadService
+from flowpulse.modules.weread.storage import WereadRepository
 
 WEREAD = "https://weread.qq.com"
 BOOK_ID = "MP_WXS_3012726261"
@@ -68,7 +68,7 @@ def test_article_sort_zero_time_uses_created_at(tmp_path: Path):
 
 @respx.mock
 def test_delete_credential_clears_browser_profile(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": []})
     profile = tmp_path / "weread" / "browser_profile"
     profile.mkdir(parents=True)
@@ -128,7 +128,7 @@ def test_scheduler_catches_up_when_overdue(tmp_path: Path):
     # 从未跑过：等满一个周期
     assert scheduler._seconds_until_due() == 120 * 60
 
-    stale = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat(timespec="seconds")
+    stale = (datetime.now(UTC) - timedelta(hours=3)).isoformat(timespec="seconds")
     repo.save_scheduler_state({"enabled": True, "interval_minutes": 120,
                                "running": False, "last_run_at": stale, "last_result": None})
     assert scheduler._seconds_until_due() == 0  # 已超期：立即补跑
@@ -143,7 +143,7 @@ def test_refresher_catches_up_when_overdue(tmp_path: Path):
     )
     assert refresher._seconds_until_due() == 24 * 3600
 
-    stale = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat(timespec="seconds")
+    stale = (datetime.now(UTC) - timedelta(hours=25)).isoformat(timespec="seconds")
     repo.save_cookie_refresher_state({"enabled": True, "interval_hours": 24,
                                       "running": False, "last_run_at": stale, "last_result": None})
     assert refresher._seconds_until_due() == 0
@@ -231,7 +231,7 @@ def test_self_heal_cooldown_prevents_repeat(tmp_path: Path, monkeypatch):
 
 @respx.mock
 def test_digest_backfilled_after_content_fetch(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": []})
     respx.get(f"{WEREAD}/api/mp/cover").respond(
         json={"name": "测试号", "reviewId": f"{BOOK_ID}_d1", "title": "摘要篇", "pic": "", "avatar": ""}
@@ -255,7 +255,7 @@ def test_digest_backfilled_after_content_fetch(tmp_path: Path, monkeypatch):
 
 @respx.mock
 def test_public_page_size_cap(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("weread.client.PUBLIC_PAGE_MAX_BYTES", 32)
+    monkeypatch.setattr("flowpulse.modules.weread.client.PUBLIC_PAGE_MAX_BYTES", 32)
     async def run() -> None:
         client = WereadClient(httpx.AsyncClient(), lambda: "", 0)
         respx.get("https://mp.weixin.qq.com/s/big").respond(

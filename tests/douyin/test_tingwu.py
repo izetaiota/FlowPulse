@@ -1,4 +1,4 @@
-from douyin.transcribers.tingwu import transcript_from_tingwu_result
+from flowpulse.modules.douyin.transcribers.tingwu import transcript_from_tingwu_result
 
 
 def test_transcript_from_tingwu_sentence_result():

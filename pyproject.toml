@@ -1,5 +1,5 @@
 [project]
-name = "douyin-transcribe-api"
+name = "flowpulse"
 version = "0.1.0"
 description = "心流 FlowPulse — 自媒体全域运营工作台（抖音转写 / 小红书抓取 / 公众号订阅 RSS）"
 readme = "README.md"
@@ -52,7 +52,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/metacorpus", "src/douyin", "src/xhs_spider", "src/weread"]
+packages = ["src/flowpulse"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

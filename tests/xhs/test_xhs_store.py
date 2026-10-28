@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from xhs_spider.integration.models import CreateJobRequest, JobRecord, JobType
-from xhs_spider.integration.store import CookieStore, JobRepository
+from flowpulse.modules.xhs.integration.models import CreateJobRequest, JobRecord, JobType
+from flowpulse.modules.xhs.integration.store import CookieStore, JobRepository
 
 
 def test_cookie_store_roundtrip(tmp_path: Path):

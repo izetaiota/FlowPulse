@@ -14,9 +14,9 @@ FlowPulse 处于 **早期开发阶段**，按「内容采集 → 工作台 → �
 
 | 能力 | 目录 | 状态 | 说明 |
 | --- | --- | --- | --- |
-| 公众号订阅 RSS（微信读书通道） | `src/weread/` | ✅ 可用 | 订阅增删、增量同步、站内阅读、RSS 输出、内置定时调度、Webhook 告警 |
-| 抖音转写 | `src/douyin/` | ✅ 可用 | 短视频解析 + 语音转写，输出结构化语料（JSON / SRT / Markdown） |
-| 小红书抓取 | `src/xhs_spider/` | ✅ 可用 | 笔记 / 用户 / 搜索抓取、媒体下载、Excel 导出（真实账号实测通过） |
+| 公众号订阅 RSS（微信读书通道） | `src/flowpulse/modules/weread/` | ✅ 可用 | 订阅增删、增量同步、站内阅读、RSS 输出、内置定时调度、Webhook 告警 |
+| 抖音转写 | `src/flowpulse/modules/douyin/` | ✅ 可用 | 短视频解析 + 语音转写，输出结构化语料（JSON / SRT / Markdown） |
+| 小红书抓取 | `src/flowpulse/modules/xhs/` | ✅ 可用 | 笔记 / 用户 / 搜索抓取、媒体下载、Excel 导出（真实账号实测通过） |
 | 工作台前端 | `frontend/` | 🚧 骨架 | Vue3 + Element Plus；公众号订阅页已可用，其余页面为占位 |
 | 官网落地页 | `website/` | ✅ 上线 | GitHub Pages 自动部署 |
 | 消息中心 / 选题库 / 素材库 / 批量分发 / 内容与投流数据 | — | 📋 规划 | 见 [plan.md](plan.md) 功能需求清单 |
@@ -84,7 +84,7 @@ docker compose up -d --build
 
 ## 公众号订阅 RSS（微信读书通道）
 
-`src/weread/` 基于 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT）的微信读书通道思路实现，是把公众号内容收进 FlowPulse 的第一步：**订阅公众号 → 定时增量同步 → 站内浏览 / RSS 输出**。
+`src/flowpulse/modules/weread/` 基于 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT）的微信读书通道思路实现，是把公众号内容收进 FlowPulse 的第一步：**订阅公众号 → 定时增量同步 → 站内浏览 / RSS 输出**。
 
 工作原理：
 
@@ -170,7 +170,7 @@ data/tasks/<task-id>/
 
 ## 小红书抓取
 
-`src/xhs_spider/` 移植自 [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)（逐字移植，仅重写 import 前缀），挂载到同一个 FastAPI 应用，路由前缀 `/api/v1/xhs`。
+`src/flowpulse/modules/xhs/` 移植自 [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)（逐字移植，仅重写 import 前缀），挂载到同一个 FastAPI 应用，路由前缀 `/api/v1/xhs`。
 
 - **前置**：Node.js（签名运行时）+ `cd src\xhs_spider && npm.cmd install`（crypto-js）；Python 依赖 `pip install -e ".[xhs]"`；可选代理 `XHS_PROXY`。
 - **登录**：Cookie 直登 / 扫码 / 手机验证码，登录态留存于 `data/xhs/cookies.json`。扫码与 Cookie 登录均已真实账号实测通过；Cookie 直登需完整 Cookie（必须同时含 `web_session` 和 `a1`，可用仓库 `extension/` 下的配套 Chrome 扩展一键获取）。
@@ -195,11 +195,15 @@ data/tasks/<task-id>/
 ## 项目结构
 
 ```text
-src/
-  metacorpus/        应用入口、全局配置（FastAPI app 工厂）
-  weread/            公众号订阅 RSS（微信读书通道）：client / service / storage / rss / scheduler / notify / api
-  douyin/            抖音转写：resolvers / services / transcribers / renderers / storage / api
-  xhs_spider/        小红书抓取：apis / xhs_utils / spider（上游移植）+ integration（本项目集成层）
+src/flowpulse/
+  main.py            FastAPI 应用装配（create_app）
+  config.py          全局 Settings（.env 驱动）
+  static_site.py     前端静态资源托管（Docker 单容器）
+  core/              跨模块共享基建：storage（原子写）/ notify（Webhook 通知）
+  modules/           业务模块域（对应 plan.md 模块划分，新模块加在这里）
+    weread/          公众号订阅 RSS（微信读书通道）：client / service / storage / rss / scheduler / qrlogin / refresh / api
+    douyin/          抖音转写：resolvers / services / transcribers / renderers / storage / api
+    xhs/             小红书抓取：apis / xhs_utils / spider（上游移植）+ integration（本项目集成层）
 frontend/            Vue3 工作台前端
 website/             官网落地页（GitHub Pages）
 extension/           Chrome 扩展（小红书 Cookie 一键获取）
@@ -239,4 +243,4 @@ data/                运行时数据（任务、订阅、登录态，不入库�
 
 ## License
 
-[MIT](LICENSE) © 2026 izetaiota。其中 `src/xhs_spider/` 移植自 [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)，`src/weread/` 采集思路参考 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT，模块内已保留其版权声明）。
+[MIT](LICENSE) © 2026 izetaiota。其中 `src/flowpulse/modules/xhs/` 移植自 [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)，`src/flowpulse/modules/weread/` 采集思路参考 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT，模块内已保留其版权声明）。

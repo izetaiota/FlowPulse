@@ -6,11 +6,11 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from metacorpus.config import Settings
-from metacorpus.main import create_app
-from weread.models import MpArticle
-from weread.notify import WebhookNotifier
-from weread.rss import build_rss
+from flowpulse.config import Settings
+from flowpulse.core.notify import WebhookNotifier
+from flowpulse.main import create_app
+from flowpulse.modules.weread.models import MpArticle
+from flowpulse.modules.weread.rss import build_rss
 
 WEREAD = "https://weread.qq.com"
 BOOK_ID = "MP_WXS_3012726261"
@@ -55,7 +55,7 @@ def test_rss_builder_escapes_and_formats():
 
 @respx.mock
 def test_rss_endpoints(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": []})
     respx.get(f"{WEREAD}/api/mp/cover").respond(
         json={"name": "测试号", "reviewId": f"{BOOK_ID}_c1", "title": "第一篇", "pic": "", "avatar": ""}
@@ -140,7 +140,7 @@ async def test_webhook_cooldown():
 
 
 def test_scheduler_status_disabled_by_default(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     with TestClient(create_app()) as client:
         status = client.get("/api/weread/scheduler").json()
         assert status["enabled"] is False
@@ -150,7 +150,7 @@ def test_scheduler_status_disabled_by_default(tmp_path: Path, monkeypatch):
 @respx.mock
 def test_scheduler_trigger_sends_auth_alert(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: make_settings(tmp_path, weread_webhook_url=DINGTALK_WEBHOOK),
     )
     respx.get(f"{WEREAD}/web/shelf/sync").respond(json={"books": []})
@@ -191,7 +191,7 @@ def test_scheduler_trigger_sends_auth_alert(tmp_path: Path, monkeypatch):
 def test_scheduler_trigger_no_credential_alert(tmp_path: Path, monkeypatch):
     """无凭证触发：记录错误结果并告警（auth 类）。"""
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: make_settings(tmp_path, weread_webhook_url=DINGTALK_WEBHOOK),
     )
     webhook_route = respx.post(DINGTALK_WEBHOOK).respond(json={"errcode": 0})

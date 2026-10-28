@@ -2,22 +2,22 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from metacorpus.config import Settings
-from metacorpus.main import create_app
-from douyin.models import (
+from flowpulse.config import Settings
+from flowpulse.main import create_app
+from flowpulse.modules.douyin.models import (
     TaskRecord,
     TaskStatus,
+    TranscribeRequest,
     Transcript,
     TranscriptSegment,
-    TranscribeRequest,
     VideoInfo,
 )
-from douyin.renderers.artifacts import render_artifacts
+from flowpulse.modules.douyin.renderers.artifacts import render_artifacts
 
 
 def test_live_health(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: Settings(data_dir=tmp_path, transcribe_engine="mock"),
     )
     with TestClient(create_app()) as client:
@@ -28,7 +28,7 @@ def test_live_health(tmp_path: Path, monkeypatch):
 
 def test_missing_task(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: Settings(data_dir=tmp_path, transcribe_engine="mock"),
     )
     with TestClient(create_app()) as client:
@@ -38,7 +38,7 @@ def test_missing_task(tmp_path: Path, monkeypatch):
 
 def test_rejects_path_traversal_task_id(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: Settings(data_dir=tmp_path, transcribe_engine="mock"),
     )
     with TestClient(create_app()) as client:
@@ -48,7 +48,7 @@ def test_rejects_path_traversal_task_id(tmp_path: Path, monkeypatch):
 
 def test_capabilities_describes_available_features(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: Settings(data_dir=tmp_path, transcribe_engine="mock"),
     )
     with TestClient(create_app()) as client:
@@ -62,7 +62,7 @@ def test_capabilities_describes_available_features(tmp_path: Path, monkeypatch):
 
 def test_create_task_is_idempotent(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: Settings(data_dir=tmp_path, transcribe_engine="mock"),
     )
     request = {
@@ -81,7 +81,7 @@ def test_create_task_is_idempotent(tmp_path: Path, monkeypatch):
 
 def test_lists_tasks_and_returns_structured_result(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: Settings(data_dir=tmp_path, transcribe_engine="mock"),
     )
     app = create_app()
@@ -129,7 +129,7 @@ def test_lists_tasks_and_returns_structured_result(tmp_path: Path, monkeypatch):
 
 def test_result_requires_completed_task(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: Settings(data_dir=tmp_path, transcribe_engine="mock"),
     )
     app = create_app()

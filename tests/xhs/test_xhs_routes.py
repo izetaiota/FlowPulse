@@ -2,13 +2,13 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from metacorpus.config import Settings
-from metacorpus.main import create_app
+from flowpulse.config import Settings
+from flowpulse.main import create_app
 
 
 def _client(tmp_path: Path, monkeypatch) -> TestClient:
     monkeypatch.setattr(
-        "metacorpus.main.get_settings",
+        "flowpulse.main.get_settings",
         lambda: Settings(data_dir=tmp_path, transcribe_engine="mock"),
     )
     return TestClient(create_app())

@@ -4,10 +4,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from metacorpus.config import Settings
-from metacorpus.main import create_app
-from weread.api import get_weread_qr_login
-from weread.qrlogin import _cookie_string, _has_login_cookie
+from flowpulse.config import Settings
+from flowpulse.main import create_app
+from flowpulse.modules.weread.api import get_weread_qr_login
+from flowpulse.modules.weread.qrlogin import _cookie_string, _has_login_cookie
 
 
 def make_settings(tmp_path: Path, **overrides) -> Settings:
@@ -41,7 +41,7 @@ def test_cookie_string_joins_and_skips_empty():
 
 def test_qr_status_idle_without_launch(tmp_path: Path, monkeypatch):
     """刚起服务时状态应为 idle，且不能触发浏览器启动。"""
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     with TestClient(create_app()) as client:
         body = client.get("/api/weread/credential/qr-login").json()
         assert body["state"] == "idle"
@@ -69,7 +69,7 @@ class FakeQrManager:
 
 
 def test_qr_login_api_flow(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("metacorpus.main.get_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     app = create_app()
     fake = FakeQrManager()
     app.dependency_overrides[get_weread_qr_login] = lambda: fake
