@@ -58,6 +58,30 @@ pnpm dev        # http://localhost:5173，/api 代理到 127.0.0.1:8000
 
 页面模块（驾驶舱、账号管理、消息中心、选题、素材、公众号订阅、内容创作、发布任务、数据报表、设置）详见 [frontend/README.md](frontend/README.md)。
 
+### Docker 部署（单容器，前后端合一）
+
+```bash
+docker compose up -d --build
+```
+
+打开 <http://127.0.0.1:8000> 即是工作台前端页面，`/api` 同源直达后端；运行时数据全部落在宿主机 `./data` 目录。
+
+- 配置：把 `.env.example` 复制为 `.env` 放在项目根目录（转写引擎、微信读书 Cookie、Webhook 告警等），compose 会自动注入容器。
+- 国内网络构建不畅时，可用 `--build-arg` 覆盖基础镜像与软件源（详见 `Dockerfile` 头部注释）：
+
+  ```bash
+  docker build \
+    --build-arg NODE_IMAGE=docker.1ms.run/library/node:22-alpine \
+    --build-arg PYTHON_IMAGE=docker.1ms.run/library/python:3.12-slim-bookworm \
+    --build-arg APT_MIRROR=mirrors.tuna.tsinghua.edu.cn \
+    --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    --build-arg NPM_REGISTRY=https://registry.npmmirror.com \
+    -t flowpulse:latest .
+  ```
+
+- 镜像内置 FFmpeg（抖音音频提取）与 Node.js（小红书签名运行时）；因包含 opencv 等依赖，镜像体积约 1.5 GB。
+- 扫码登录类功能（微信读书扫码续期、XHS 扫码登录）需要驱动本机可见浏览器，容器内不可用，请在容器内使用 Cookie 方式配置凭证。
+
 ## 公众号订阅 RSS（微信读书通道）
 
 `src/weread/` 基于 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT）的微信读书通道思路实现，是把公众号内容收进 FlowPulse 的第一步：**订阅公众号 → 定时增量同步 → 站内浏览 / RSS 输出**。
@@ -190,7 +214,7 @@ data/                运行时数据（任务、订阅、登录态，不入库�
 - [ ] 多平台账号接入与统一消息聚合
 - [ ] 内容编辑与批量分发
 - [ ] 内容数据监控与投流 ROI 分析
-- [ ] Docker 私有化一键部署（compose + SQLite 单文件）
+- [x] Docker 私有化部署（Dockerfile + docker-compose，单容器前后端合一）
 
 完整功能需求清单见 [plan.md](plan.md)。
 
@@ -199,7 +223,7 @@ data/                运行时数据（任务、订阅、登录态，不入库�
 - 后台任务与调度器运行在当前 FastAPI 进程中，进程重启不恢复未完成任务（调度状态已持久化，重启后继续）。
 - 微信读书通道为非官方接口，存在频率限制与 Cookie 过期风险；高频大量拉取可能触发风控。
 - XHS 签名依赖外部 Node 与小红书线上算法，平台更新或风控变化可能导致失效；XHS 登录中间态会话仅存于内存。
-- 暂未提供身份认证、限流、任务取消和 SSE 进度推送；Docker 私有化部署尚未提供。
+- 暂未提供身份认证、限流、任务取消和 SSE 进度推送。
 - 抖音分享页结构或风控变化可能导致直接解析失效；发现内嵌字幕时会跳过下载和听悟转写。
 
 生产部署前建议增加 API 鉴权、持久化任务队列、并发限制、结构化日志。

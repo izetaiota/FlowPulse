@@ -1,0 +1,19 @@
+services:
+  flowpulse:
+    build: .
+    image: flowpulse:latest
+    container_name: flowpulse
+    ports:
+      - "8000:8000"
+    # 可选：把 .env.example 复制为 .env 后填入转写引擎 / 微信读书等配置
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TZ: Asia/Shanghai
+      DATA_DIR: /app/data
+      STATIC_DIR: /app/static
+    volumes:
+      # 任务、订阅、登录态等全部运行时数据，随宿主机目录持久化
+      - ./data:/app/data
+    restart: unless-stopped

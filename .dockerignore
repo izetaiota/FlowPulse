@@ -1,0 +1,27 @@
+# 版本控制与本地环境
+.git
+.github
+.venv
+.tools
+
+# 运行时数据与密钥（绝不进镜像）
+data
+.env
+scripts/weread_cookie.txt
+
+# 依赖与构建产物（前端在构建阶段重新安装）
+node_modules
+frontend/node_modules
+frontend/dist
+
+# 与镜像无关的目录
+tests
+docs
+website
+extension
+scripts
+plan.md
+
+# Python 缓存
+__pycache__
+*.pyc

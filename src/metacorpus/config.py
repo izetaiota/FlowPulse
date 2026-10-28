@@ -9,6 +9,8 @@ class Settings(BaseSettings):
 
     app_name: str = "心流 FlowPulse API"
     data_dir: Path = Path("./data")
+    # 前端静态资源目录（Docker 单容器部署时由 FastAPI 伺服，空 = 不挂载）
+    static_dir: str = ""
     transcribe_engine: str = "mock"
     max_download_bytes: int = 500 * 1024 * 1024
     request_timeout_seconds: float = 30

@@ -4,7 +4,6 @@ import httpx
 from fastapi import FastAPI
 
 from douyin.api.routes import get_pipeline, get_repository, router
-from metacorpus.config import get_settings
 from douyin.resolvers.api import ApiResolver
 from douyin.resolvers.router import ResolverRouter
 from douyin.resolvers.share_page import SharePageResolver
@@ -16,13 +15,15 @@ from douyin.transcribers.router import TranscriberRouter
 from douyin.transcribers.sensevoice import SenseVoiceTranscriber
 from douyin.transcribers.tingwu import TingwuTranscriber
 from douyin.transcribers.whisper import WhisperTranscriber
-from xhs_spider.integration.routes import get_xhs_service, router as xhs_router
-from xhs_spider.integration.service import XhsService
+from metacorpus.config import get_settings
+from metacorpus.static_site import mount_static_site
 from weread.api import (
     get_weread_cookie_refresher,
     get_weread_qr_login,
     get_weread_scheduler,
     get_weread_service,
+)
+from weread.api import (
     router as weread_router,
 )
 from weread.notify import WebhookNotifier
@@ -31,6 +32,9 @@ from weread.refresh import WereadCookieRefresher
 from weread.scheduler import WereadScheduler
 from weread.service import WereadService
 from weread.storage import WereadRepository
+from xhs_spider.integration.routes import get_xhs_service
+from xhs_spider.integration.routes import router as xhs_router
+from xhs_spider.integration.service import XhsService
 
 
 def create_app() -> FastAPI:
@@ -155,6 +159,8 @@ def create_app() -> FastAPI:
     app.state.weread_scheduler = weread_scheduler
     app.state.weread_qr_login = weread_qr_login
     app.state.weread_cookie_refresher = weread_cookie_refresher
+    if settings.static_dir:
+        mount_static_site(app, settings.static_dir)
     return app
 
 
