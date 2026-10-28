@@ -150,12 +150,19 @@ async function refreshCookieNow() {
 
 // ---- 订阅 ----
 const subscriptions = ref<WereadSubscription[]>([]);
+const subscriptionsError = ref("");
 const newSubscriptionInput = ref("");
 const adding = ref(false);
 const syncing = ref(false);
 
 async function loadSubscriptions() {
-  subscriptions.value = await wereadApi.listSubscriptions();
+  subscriptionsError.value = "";
+  try {
+    subscriptions.value = await wereadApi.listSubscriptions();
+  } catch {
+    // 首次加载失败（如后端重启瞬间）不再静默空列表，给出明确重试入口
+    subscriptionsError.value = "订阅列表加载失败，请确认后端服务正常后重试。";
+  }
 }
 
 // ---- 订阅向导：文章链接/名称识别后，引导补充微信读书链接 ----
@@ -545,7 +552,12 @@ onMounted(async () => {
         </div>
       </template>
 
-      <el-table v-if="subscriptions.length" :data="subscriptions" style="width: 100%">
+      <div v-if="subscriptionsError && !subscriptions.length" class="space-y-3">
+        <el-alert type="error" :title="subscriptionsError" :closable="false" />
+        <el-button size="small" @click="loadSubscriptions">重试</el-button>
+      </div>
+
+      <el-table v-else-if="subscriptions.length" :data="subscriptions" style="width: 100%">
         <el-table-column label="公众号" min-width="200">
           <template #default="{ row }">
             <div class="flex items-center gap-2">
@@ -580,7 +592,7 @@ onMounted(async () => {
         </el-table-column>
       </el-table>
 
-      <el-empty v-else description="还没有订阅任何公众号。微信读书 App 订阅后，复制公众号主页链接粘贴到上方即可。" />
+      <el-empty v-else-if="!subscriptionsError" description="还没有订阅任何公众号。微信读书 App 订阅后，复制公众号主页链接粘贴到上方即可。" />
     </el-card>
 
     <!-- 文章抽屉（列表 / 阅读双视图） -->
