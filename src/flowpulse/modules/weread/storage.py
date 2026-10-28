@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from flowpulse.core.crypto import CredentialCipher
 from flowpulse.core.storage import atomic_write_json, read_json
 from flowpulse.modules.weread.models import (
     CredentialState,
@@ -45,7 +46,7 @@ class WereadRepository:
         self.root.mkdir(parents=True, exist_ok=True)
         self.articles_root.mkdir(parents=True, exist_ok=True)
         self.contents_root.mkdir(parents=True, exist_ok=True)
-        self._cipher = self._init_credential_cipher(credential_key)
+        self._cipher = CredentialCipher(credential_key, key_file=self.root / ".credential_key")
 
     # ---- 调度器状态 ----
 
@@ -77,47 +78,11 @@ class WereadRepository:
 
     # ---- 凭证 ----
 
-    def _init_credential_cipher(self, credential_key: str):
-        """Cookie 静态加密（Fernet）：优先用外部密钥，其次 data 目录内密钥文件。
-
-        未安装 cryptography 时降级为明文存储（功能不受影响，仅静态保护缺失）。
-        """
-        try:
-            from cryptography.fernet import Fernet
-        except ImportError:
-            return None
-        key = (credential_key or "").strip()
-        if key:
-            return Fernet(key.encode())  # 外部密钥非法时直接报错，避免静默降级
-        key_path = self.root / ".credential_key"
-        try:
-            key = key_path.read_text(encoding="utf-8").strip()
-        except OSError:
-            key = Fernet.generate_key().decode()
-            key_path.write_text(key, encoding="utf-8")
-        return Fernet(key.encode())
-
     def _seal(self, payload: dict) -> dict:
-        if self._cipher and payload.get("cookie"):
-            payload = dict(payload)
-            payload["cookie"] = self._cipher.encrypt(payload["cookie"].encode()).decode()
-            payload["cookie_encrypted"] = True
-        return payload
+        return self._cipher.seal(payload)
 
     def _unseal(self, data) -> dict | None:
-        if not data:
-            return None
-        if not data.get("cookie_encrypted"):
-            return data  # 旧版明文，读取不受影响，下次保存自动升级为加密
-        if not self._cipher:
-            return None  # 密钥不可用（丢失/更换），凭证无法解密
-        try:
-            data = dict(data)
-            data["cookie"] = self._cipher.decrypt(data["cookie"].encode()).decode()
-        except Exception:
-            return None
-        data.pop("cookie_encrypted", None)
-        return data
+        return self._cipher.unseal(data)
 
     def save_credential(self, cookie: str) -> CredentialState:
         state = CredentialState(cookie=cookie.strip())

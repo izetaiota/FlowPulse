@@ -13,7 +13,33 @@ services:
       TZ: Asia/Shanghai
       DATA_DIR: /app/data
       STATIC_DIR: /app/static
+      # PostgreSQL 存储模式（默认启用；想用零依赖文件存储则删除此变量与 postgres 服务）
+      DATABASE_URL: postgresql+psycopg://flowpulse:flowpulse@postgres:5432/flowpulse
     volumes:
-      # 任务、订阅、登录态等全部运行时数据，随宿主机目录持久化
+      # 任务、浏览器登录态等运行时数据随宿主机持久化；
+      # 订阅/文章/凭证在 PG 模式下存数据库（.credential_key 加密密钥仍在此目录）
       - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: flowpulse-postgres
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_USER: flowpulse
+      POSTGRES_PASSWORD: flowpulse
+      POSTGRES_DB: flowpulse
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowpulse -d flowpulse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     # 前端静态资源目录（Docker 单容器部署时由 FastAPI 伺服，空 = 不挂载）
     static_dir: str = ""
+    # 数据库连接（PostgreSQL）：postgresql+psycopg://user:pass@host:5432/flowpulse
+    # 空 = 文件存储（零依赖默认）；设置后 weread 等模块切换到数据库存储
+    database_url: str = ""
     transcribe_engine: str = "mock"
     max_download_bytes: int = 500 * 1024 * 1024
     request_timeout_seconds: float = 30

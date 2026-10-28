@@ -48,9 +48,9 @@ COPY pyproject.toml README.md LICENSE ./
 COPY src/ ./src/
 # xhs 可选组必装：应用启动时顶层即导入其模块（curl_cffi / loguru / cv2 等）
 RUN if [ -n "$PIP_INDEX_URL" ]; then \
-        pip install -i "$PIP_INDEX_URL" ".[xhs]"; \
+        pip install -i "$PIP_INDEX_URL" ".[xhs,postgres]"; \
     else \
-        pip install ".[xhs]"; \
+        pip install ".[xhs,postgres]"; \
     fi
 
 # 前端产物交给 FastAPI 同源伺服（页面与 /api 同一端口）

@@ -69,6 +69,14 @@ docker compose up -d --build
 - 配置：把 `.env.example` 复制为 `.env` 放在项目根目录（转写引擎、微信读书 Cookie、Webhook 告警等），compose 会自动注入容器。
 - 国内网络构建不畅时，可用 `--build-arg` 覆盖基础镜像与软件源（详见 `Dockerfile` 头部注释）：
 
+### 存储方案：文件 / PostgreSQL 双模式
+
+- **默认零依赖文件存储**：不设置 `DATABASE_URL`，数据存 `data/` 目录（JSON 原子写），拷走目录即完整备份。
+- **PostgreSQL 模式**：设置 `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/flowpulse`（需 `pip install -e ".[postgres]"`），weread 模块切换到数据库存储——订阅 / 文章 / 正文缓存 / 凭证 / 调度状态分表存放，正文独立成表避免列表查询拖大字段；docker-compose 已内置 `postgres:16` 服务，默认走 PG 模式（想用文件存储删掉该变量与 postgres 服务即可）。
+- 表结构由 Alembic 管理（`python -m alembic upgrade head`，连接串取 `DATABASE_URL`）；应用启动时也会幂等建表，空库开箱即用。
+- 从文件存储迁移到 PG：`DATABASE_URL=... PYTHONPATH=src python scripts/migrate_weread_to_pg.py`（幂等，可重复执行）。
+- Cookie 在两种模式下均为 Fernet 静态加密，密钥共用 `data/weread/.credential_key`（或 `WEREAD_CREDENTIAL_KEY`），切换后端密文互通。
+
   ```bash
   docker build \
     --build-arg NODE_IMAGE=docker.1ms.run/library/node:22-alpine \
@@ -199,7 +207,8 @@ src/flowpulse/
   main.py            FastAPI 应用装配（create_app）
   config.py          全局 Settings（.env 驱动）
   static_site.py     前端静态资源托管（Docker 单容器）
-  core/              跨模块共享基建：storage（原子写）/ notify（Webhook 通知）
+  core/              跨模块共享基建：storage（原子写）/ notify（Webhook 通知）/ crypto（凭证加密）
+  db/                数据库层：SQLAlchemy 模型与引擎（PostgreSQL 模式）
   modules/           业务模块域（对应 plan.md 模块划分，新模块加在这里）
     weread/          公众号订阅 RSS（微信读书通道）：client / service / storage / rss / scheduler / qrlogin / refresh / api
     douyin/          抖音转写：resolvers / services / transcribers / renderers / storage / api
@@ -208,7 +217,8 @@ frontend/            Vue3 工作台前端
 website/             官网落地页（GitHub Pages）
 extension/           Chrome 扩展（小红书 Cookie 一键获取）
 docs/                技术文档
-scripts/             辅助脚本（微信读书通道 probe 等）
+migrations/          Alembic 数据库迁移脚本
+scripts/             辅助脚本（微信读书通道 probe、PG 数据迁移等）
 data/                运行时数据（任务、订阅、登录态，不入库）
 ```
 

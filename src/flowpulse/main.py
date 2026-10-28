@@ -106,12 +106,28 @@ def create_app() -> FastAPI:
         await weread_scheduler.stop()
         await weread_cookie_refresher.stop()
         await weread_qr_login.aclose()
+        if db_engine is not None:
+            db_engine.dispose()
 
     xhs_service = XhsService(settings.data_dir, proxy=settings.xhs_proxy or None)
 
-    weread_repository = WereadRepository(
-        settings.data_dir, credential_key=settings.weread_credential_key
-    )
+    # 存储双模式：DATABASE_URL 指向 PostgreSQL 时用数据库仓储，否则文件存储（零依赖默认）
+    db_engine = None
+    if settings.database_url:
+        from flowpulse.db.engine import create_engine_and_sessionmaker, ensure_tables
+        from flowpulse.modules.weread.pg_repository import PgWereadRepository
+
+        db_engine, db_sessionmaker = create_engine_and_sessionmaker(settings.database_url)
+        ensure_tables(db_engine)  # 幂等建表；结构演进走 Alembic
+        weread_repository = PgWereadRepository(
+            db_sessionmaker,
+            credential_key=settings.weread_credential_key,
+            key_file=settings.data_dir / "weread" / ".credential_key",
+        )
+    else:
+        weread_repository = WereadRepository(
+            settings.data_dir, credential_key=settings.weread_credential_key
+        )
     if settings.weread_cookie and not weread_repository.get_credential():
         weread_repository.save_credential(settings.weread_cookie)
     weread_notifier = (
