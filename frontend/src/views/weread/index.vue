@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   wereadApi,
@@ -222,6 +222,56 @@ async function removeSubscription(sub: WereadSubscription) {
   await wereadApi.deleteSubscription(sub.book_id);
   ElMessage.success("已移除");
   await loadSubscriptions();
+}
+
+// ---- 订阅设置（RSS 定制 / 清洗规则 / 推送开关） ----
+const editVisible = ref(false);
+const editSaving = ref(false);
+const editTarget = ref("");
+const editForm = reactive({
+  name: "",
+  rss_title: "",
+  rss_description: "",
+  rss_full_text: "" as "" | "on" | "off", // 三态：空 = 跟随全局
+  rss_max_items: 0,
+  strip_keywords: "",
+  notify_new: true,
+});
+
+function openEdit(sub: WereadSubscription) {
+  editTarget.value = sub.book_id;
+  editForm.name = sub.name;
+  editForm.rss_title = sub.rss_title || "";
+  editForm.rss_description = sub.rss_description || "";
+  editForm.rss_full_text = sub.rss_full_text === null ? "" : sub.rss_full_text ? "on" : "off";
+  editForm.rss_max_items = sub.rss_max_items || 0;
+  editForm.strip_keywords = sub.strip_keywords || "";
+  editForm.notify_new = sub.notify_new !== false;
+  editVisible.value = true;
+}
+
+async function saveEdit() {
+  if (editForm.rss_max_items < 0 || editForm.rss_max_items > 500) {
+    ElMessage.warning("RSS 条数限制范围为 0-500（0 = 默认 100）");
+    return;
+  }
+  editSaving.value = true;
+  try {
+    await wereadApi.updateSubscription(editTarget.value, {
+      name: editForm.name,
+      rss_title: editForm.rss_title,
+      rss_description: editForm.rss_description,
+      rss_full_text: editForm.rss_full_text === "" ? null : editForm.rss_full_text === "on",
+      rss_max_items: editForm.rss_max_items,
+      strip_keywords: editForm.strip_keywords,
+      notify_new: editForm.notify_new,
+    });
+    ElMessage.success("订阅设置已保存");
+    editVisible.value = false;
+    await loadSubscriptions();
+  } finally {
+    editSaving.value = false;
+  }
 }
 
 async function syncOne(sub: WereadSubscription) {
@@ -582,12 +632,15 @@ onMounted(async () => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250" align="center">
+        <el-table-column label="操作" width="330" align="center">
           <template #default="{ row }">
-            <el-button size="small" text type="primary" @click="openArticles(row)">文章</el-button>
-            <el-button size="small" text type="primary" @click="syncOne(row)">同步</el-button>
-            <el-button size="small" text @click="copyRss(row.book_id)">RSS</el-button>
-            <el-button size="small" text type="danger" @click="removeSubscription(row)">移除</el-button>
+            <div class="whitespace-nowrap">
+              <el-button size="small" text type="primary" @click="openArticles(row)">文章</el-button>
+              <el-button size="small" text type="primary" @click="syncOne(row)">同步</el-button>
+              <el-button size="small" text @click="copyRss(row.book_id)">RSS</el-button>
+              <el-button size="small" text @click="openEdit(row)">设置</el-button>
+              <el-button size="small" text type="danger" @click="removeSubscription(row)">移除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -654,6 +707,48 @@ onMounted(async () => {
         </div>
       </div>
     </el-drawer>
+
+    <!-- 订阅设置：RSS 定制 / 清洗规则 / 推送开关 -->
+    <el-dialog v-model="editVisible" title="订阅设置" width="520px">
+      <el-form label-width="92px">
+        <el-form-item label="显示名称">
+          <el-input v-model="editForm.name" placeholder="公众号名称" />
+        </el-form-item>
+        <el-divider content-position="left">RSS 输出</el-divider>
+        <el-form-item label="RSS 标题">
+          <el-input v-model="editForm.rss_title" placeholder="留空使用默认（心流 FlowPulse · 公众号名）" />
+        </el-form-item>
+        <el-form-item label="RSS 描述">
+          <el-input v-model="editForm.rss_description" placeholder="留空使用默认" />
+        </el-form-item>
+        <el-form-item label="输出全文">
+          <el-radio-group v-model="editForm.rss_full_text">
+            <el-radio-button value="">跟随全局</el-radio-button>
+            <el-radio-button value="on">全文</el-radio-button>
+            <el-radio-button value="off">仅摘要</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="条数上限">
+          <el-input-number v-model="editForm.rss_max_items" :min="0" :max="500" />
+          <span class="ml-2 text-xs text-gray-400">0 = 默认 100 条</span>
+        </el-form-item>
+        <el-divider content-position="left">正文与通知</el-divider>
+        <el-form-item label="清洗关键词">
+          <el-input
+            v-model="editForm.strip_keywords"
+            placeholder="逗号分隔 class/id 关键词，如 ad, banner（内置已过滤二维码/赞赏/投票）"
+          />
+        </el-form-item>
+        <el-form-item label="新文章推送">
+          <el-switch v-model="editForm.notify_new" />
+          <span class="ml-2 text-xs text-gray-400">同步到新文章时推送到通知渠道</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editSaving" @click="saveEdit">保存</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 订阅向导：已识别公众号，引导补充微信读书链接 -->
     <el-dialog v-model="wizardVisible" title="完成订阅" width="480px">

@@ -58,6 +58,8 @@ class WereadQrLoginManager:
         self._lock = asyncio.Lock()
         # 同一持久化 profile 同时只能开一个浏览器实例（扫码窗口与无头续期互斥）
         self._browser_lock = asyncio.Lock()
+        # 进行中的扫码页面引用（供失效告警截图二维码）
+        self._scan_page = None
 
     # ---- 对外接口 ----
 
@@ -131,6 +133,22 @@ class WereadQrLoginManager:
             finally:
                 await context.close()
 
+    async def qr_screenshot_base64(self) -> str | None:
+        """扫码窗口整页截图（base64 PNG，含登录二维码）；无进行中的会话返回 None。
+
+        供 Cookie 失效告警把二维码直接推到飞书（远程扫码续期）。
+        """
+        page = self._scan_page
+        if page is None:
+            return None
+        try:
+            png = await page.screenshot(type="png")
+        except Exception:
+            return None
+        import base64
+
+        return base64.b64encode(png).decode("ascii")
+
     # ---- 内部流程 ----
 
     def _fail(self, message: str) -> None:
@@ -165,6 +183,7 @@ class WereadQrLoginManager:
             context, _channel = await self._launch(playwright)
             page = context.pages[0] if context.pages else await context.new_page()
             self._page_url = _LOGIN_URL
+            self._scan_page = page
             await page.goto(_LOGIN_URL, wait_until="domcontentloaded", timeout=45_000)
             await asyncio.sleep(1.5)
 
@@ -190,6 +209,7 @@ class WereadQrLoginManager:
                 self._message = f"扫码拿到了 Cookie，但校验未通过：{result.get('message', '')}"
             await asyncio.sleep(_CLOSE_DELAY_SECONDS)
         finally:
+            self._scan_page = None
             if context:
                 try:
                     await context.close()

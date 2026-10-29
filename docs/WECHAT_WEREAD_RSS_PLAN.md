@@ -195,3 +195,28 @@ FastAPI /api/weread/* ──► Vue3 前端「公众号订阅」页（复用 fro
 - we-mp-rss 关键源码：`core/wx/model/weread_mp.py`、`core/wx/model/weread.py`、`core/weread_cookie_refresh.py`、`jobs/mps.py`、`config.example.yaml`
 - 其 issue #467（`~`→`_` token bug）、#469（频率限制降级）
 - plan.md 模块 1（账号接入）、模块 9（自动化规则/Webhook）、参考资料清单
+
+---
+
+## 7. 对标 we-mp-rss 的增强批次（2026-10-29 立项，参考 docs 内 1.x 节对比分析）
+
+### 阶段 6：RSS 体验定制 + 正文清洗 ✅ 2026-10-29 完成
+
+- 订阅级 RSS 定制：`rss_title` / `rss_description` / `rss_full_text`（三态，null=跟随全局 WEREAD_RSS_FULL_TEXT）/ `rss_max_items`（0=默认 100）
+- 正文清洗 `clean.py`：内置默认规则（二维码 qr_code / 赞赏 reward / 功能条 function_mod / 投票 vote_class）+ 订阅级 `strip_keywords` 叠加（逗号分隔 class/id 子串匹配，命中移除整个子树）；仅在 RSS 全文输出时应用，存储保持原文
+- 数据库：alembic 0005 为 fp_weread_subscriptions 加 6 列（0004 为 RBAC 方案预留）
+- API：PUT /api/weread/subscriptions/{book_id}（保留同步状态字段）；前端订阅列表新增「设置」对话框
+
+### 阶段 7：多渠道通知 + 新文章推送 + 失效告警附二维码 ✅ 2026-10-29 完成
+
+- WebhookNotifier 多渠道：WEREAD_NOTIFY_CHANNELS 逗号分隔多个 webhook，与 WEREAD_WEBHOOK_URL 合并去重，按 URL 自动适配飞书/钉钉/自定义格式
+- 新文章推送：同步发现新文章（订阅 notify_new=true 且渠道已配置）即推送标题+原文链接 markdown 到全部渠道；每订阅每次同步最多列 10 篇
+- Cookie 失效告警附二维码：scheduler 告警时自动拉起扫码窗口（幂等），8 秒后整页截图 base64，飞书渠道发 image 消息（远程扫码续期），其余渠道/截图失败退回文本
+- upsert_articles 返回新增文章列表（原返回数量），供推送使用
+
+### 阶段 8（未启动）：微信公众平台后台采集通道
+
+- 目标：解决微信读书通道两大死穴——公众号名称搜索被 -2012 风控、cover 接口只返回最新一篇无法回补历史
+- 方案：用户以自己公众号的运营者身份登录 mp.weixin.qq.com（Playwright + 反爬对抗），走后台"素材管理→搜索文章"获取任意公众号 fakeid 并翻页拉取完整历史列表；正文仍走现有公开页抓取
+- 前置：用户需注册一个公众号（免费）；涉及反爬脚本维护，成本高一档，单独立项
+- 参考：we-mp-rss driver/wx（WX_API）+ core/wx（search_Biz / get_Articles）

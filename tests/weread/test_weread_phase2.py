@@ -111,17 +111,17 @@ def _notifier(url: str) -> WebhookNotifier:
 
 def test_webhook_payload_formats():
     dingtalk = _notifier(DINGTALK_WEBHOOK)
-    assert dingtalk._payload("标题", "内容") == {
+    assert dingtalk._payload(DINGTALK_WEBHOOK, "标题", "内容") == {
         "msgtype": "markdown",
         "markdown": {"title": "标题", "text": "**标题**\n\n内容"},
     }
     feishu = _notifier("https://open.feishu.cn/open-apis/bot/v2/hook/x")
-    assert feishu._payload("标题", "内容") == {
+    assert feishu._payload(feishu._urls[0], "标题", "内容") == {
         "msg_type": "text",
         "content": {"text": "标题\n内容"},
     }
     generic = _notifier("https://example.com/hook")
-    assert generic._payload("标题", "内容") == {"title": "标题", "text": "内容"}
+    assert generic._payload(generic._urls[0], "标题", "内容") == {"title": "标题", "text": "内容"}
 
 
 @respx.mock

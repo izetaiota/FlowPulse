@@ -47,6 +47,29 @@ class MpSubscription(BaseModel):
     last_sync_status: str = "never"  # never | ok | error | auth_error
     last_error: str = ""
     article_count: int = 0
+    # --- RSS 输出定制（空值 = 跟随全局默认）---
+    rss_title: str = ""
+    rss_description: str = ""
+    # None = 跟随全局 WEREAD_RSS_FULL_TEXT
+    rss_full_text: bool | None = None
+    # 0 = 默认条数（100）
+    rss_max_items: int = 0
+    # --- 正文清洗：逗号分隔 class/id 关键词，叠加内置默认规则 ---
+    strip_keywords: str = ""
+    # --- 新文章推送开关（需配置通知渠道）---
+    notify_new: bool = True
+
+
+class SubscriptionUpdateRequest(BaseModel):
+    """编辑订阅：全量可编辑字段，rss_full_text 传 null 表示恢复跟随全局。"""
+
+    name: str = ""
+    rss_title: str = ""
+    rss_description: str = ""
+    rss_full_text: bool | None = None
+    rss_max_items: int = Field(default=0, ge=0, le=500)
+    strip_keywords: str = ""
+    notify_new: bool = True
 
 
 class MpArticle(BaseModel):

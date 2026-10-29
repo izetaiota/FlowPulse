@@ -7,11 +7,13 @@ import time
 
 import httpx
 
+from flowpulse.core.notify import WebhookNotifier
 from flowpulse.modules.weread.client import WereadAPIError, WereadClient
 from flowpulse.modules.weread.models import (
     MpArticleContent,
     MpSubscription,
     SubscriptionSyncResult,
+    SubscriptionUpdateRequest,
     SyncSummary,
     normalize_book_id,
     now_iso,
@@ -45,9 +47,11 @@ class WereadService:
         http_client: httpx.AsyncClient,
         request_interval_seconds: float = 2.0,
         rss_full_text: bool = False,
+        notifier: WebhookNotifier | None = None,
     ):
         self.repository = repository
         self.rss_full_text = rss_full_text
+        self._notifier = notifier
         self.client = WereadClient(
             http_client,
             lambda: (credential.cookie if (credential := self.repository.get_credential()) else ""),
@@ -177,6 +181,22 @@ class WereadService:
 
     def list_subscriptions(self) -> list[MpSubscription]:
         return self.repository.list_subscriptions()
+
+    def update_subscription(
+        self, book_id: str, request: SubscriptionUpdateRequest
+    ) -> MpSubscription | None:
+        """编辑订阅的可定制项（RSS 输出 / 清洗规则 / 推送开关），保留同步状态字段。"""
+        sub = self.repository.get_subscription(book_id)
+        if not sub:
+            return None
+        sub.name = request.name.strip() or sub.name
+        sub.rss_title = request.rss_title.strip()
+        sub.rss_description = request.rss_description.strip()
+        sub.rss_full_text = request.rss_full_text
+        sub.rss_max_items = request.rss_max_items
+        sub.strip_keywords = request.strip_keywords.strip()
+        sub.notify_new = request.notify_new
+        return self.repository.upsert_subscription(sub)
 
     def delete_subscription(self, book_id: str) -> bool:
         return self.repository.delete_subscription(book_id)
@@ -318,13 +338,32 @@ class WereadService:
                         total_articles=self.repository.article_count(book_id),
                         message=cover_exc.message,
                     )
-        new_count = self.repository.upsert_articles(book_id, articles)
+        fresh = self.repository.upsert_articles(book_id, articles)
         self.repository.refresh_subscription_stats(book_id, "ok", note)
+        if fresh and sub and sub.notify_new:
+            await self._push_new_articles(sub, fresh)
         return SubscriptionSyncResult(
             book_id=book_id,
             name=name,
             status="ok",
-            new_articles=new_count,
+            new_articles=len(fresh),
             total_articles=self.repository.article_count(book_id),
             message=note,
+        )
+
+    async def _push_new_articles(
+        self, sub: MpSubscription, articles: list
+    ) -> None:
+        """新文章到达推送：标题 + 原文链接发到全部通知渠道（每次同步最多列 10 篇）。"""
+        notifier = self._notifier
+        if not notifier or not notifier.configured:
+            return
+        lines = [f"[{a.title or '（无标题）'}]({a.link})" for a in articles[:10]]
+        if len(articles) > 10:
+            lines.append(f"…等共 {len(articles)} 篇")
+        await notifier.send(
+            f"weread:new:{sub.book_id}",
+            f"公众号「{sub.name or sub.book_id}」更新 {len(articles)} 篇新文章",
+            "\n".join(lines),
+            cooldown_seconds=0,  # 有新文章必发（同步本身有间隔控制）
         )

@@ -100,8 +100,8 @@ def test_articles_dedup_sort_and_backfills(tmp_path: Path):
         review_id="r_new", book_id=BOOK_ID, publish_time=0,
         created_at="2026-10-27T00:00:00+00:00",
     )
-    assert repo.upsert_articles(BOOK_ID, [old, fresh]) == 2
-    assert repo.upsert_articles(BOOK_ID, [fresh]) == 0  # reviewId 去重
+    assert len(repo.upsert_articles(BOOK_ID, [old, fresh])) == 2
+    assert repo.upsert_articles(BOOK_ID, [fresh]) == []  # reviewId 去重
 
     articles = repo.list_articles(BOOK_ID)
     assert articles[0].review_id == "r_new"  # 0 时间按入库时间兜底，最新在前

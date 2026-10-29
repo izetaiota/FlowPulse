@@ -175,19 +175,19 @@ class WereadRepository:
         articles.sort(key=article_sort_key, reverse=True)
         return articles
 
-    def upsert_articles(self, book_id: str, incoming: list[MpArticle]) -> int:
-        """按 reviewId 去重合并，返回新增数量。"""
+    def upsert_articles(self, book_id: str, incoming: list[MpArticle]) -> list[MpArticle]:
+        """按 reviewId 去重合并，返回新增的文章（供新文章推送）。"""
         existing = self.list_articles(book_id)
         known = {a.review_id for a in existing}
         fresh = [a for a in incoming if a.review_id and a.review_id not in known]
         if not fresh:
-            return 0
+            return []
         merged = existing + fresh
         merged.sort(key=article_sort_key, reverse=True)
         self._write_json(
             self._article_path(book_id), [a.model_dump() for a in merged]
         )
-        return len(fresh)
+        return fresh
 
     def set_article_digest(self, book_id: str, review_id: str, digest: str) -> bool:
         """回填文章摘要（cover 通道不带摘要，读到正文后补，供 RSS description 用）。"""

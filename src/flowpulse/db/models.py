@@ -49,6 +49,15 @@ class WereadSubscriptionRow(Base):
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_sync_status: Mapped[str] = mapped_column(String(32), default="never")
     last_error: Mapped[str] = mapped_column(Text, default="")
+    # RSS 输出定制（rss_full_text NULL = 跟随全局；rss_max_items 0 = 默认）
+    rss_title: Mapped[str] = mapped_column(Text, default="")
+    rss_description: Mapped[str] = mapped_column(Text, default="")
+    rss_full_text: Mapped[bool | None] = mapped_column(Boolean)
+    rss_max_items: Mapped[int] = mapped_column(Integer, default=0)
+    # 正文清洗关键词（逗号分隔，叠加内置规则）
+    strip_keywords: Mapped[str] = mapped_column(Text, default="")
+    # 新文章推送开关
+    notify_new: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class WereadArticleRow(Base):

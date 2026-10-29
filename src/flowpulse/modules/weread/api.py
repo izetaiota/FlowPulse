@@ -3,12 +3,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 
+from flowpulse.modules.weread.clean import clean_html
 from flowpulse.modules.weread.client import WereadAPIError
 from flowpulse.modules.weread.models import (
     CredentialUpdateRequest,
     MpSubscription,
     SubscriptionCreateRequest,
     SubscriptionSyncResult,
+    SubscriptionUpdateRequest,
     SyncSummary,
     article_sort_key,
 )
@@ -171,6 +173,19 @@ async def add_subscription(
     return sub
 
 
+@router.put("/api/weread/subscriptions/{book_id}", response_model=MpSubscription)
+async def update_subscription(
+    book_id: str,
+    request: SubscriptionUpdateRequest,
+    service: WereadService = Depends(get_weread_service),
+) -> MpSubscription:
+    """编辑订阅：RSS 标题/描述/全文/条数、正文清洗关键词、新文章推送开关。"""
+    sub = service.update_subscription(book_id, request)
+    if not sub:
+        raise HTTPException(status_code=404, detail="订阅不存在")
+    return sub
+
+
 @router.delete("/api/weread/subscriptions/{book_id}")
 async def delete_subscription(
     book_id: str, service: WereadService = Depends(get_weread_service)
@@ -264,8 +279,25 @@ def _rss_response(xml: str) -> Response:
     return Response(content=xml, media_type="application/rss+xml; charset=utf-8")
 
 
-def _rss_feed(service: WereadService, base: str, title: str, description: str, articles) -> str:
-    contents = service.load_contents(articles) if service.rss_full_text else None
+def _rss_feed(
+    service: WereadService,
+    base: str,
+    sub: MpSubscription | None,
+    title: str,
+    description: str,
+    articles,
+) -> str:
+    """RSS 输出：订阅级定制（全文开关/标题/描述）+ 正文噪音清洗。"""
+    full_text = service.rss_full_text
+    if sub is not None and sub.rss_full_text is not None:
+        full_text = sub.rss_full_text
+    contents = service.load_contents(articles) if full_text else None
+    if contents:
+        extra = sub.strip_keywords if sub is not None else ""
+        contents = {rid: clean_html(html, extra) for rid, html in contents.items()}
+    if sub is not None:
+        title = sub.rss_title.strip() or title
+        description = sub.rss_description.strip() or description
     return build_rss(title, base, description, articles, contents)
 
 
@@ -281,6 +313,7 @@ async def rss_all(
     xml = _rss_feed(
         service,
         base,
+        None,
         "心流 FlowPulse · 公众号订阅（全部）",
         "全部订阅公众号文章合并输出",
         articles[:100],
@@ -298,12 +331,14 @@ async def rss_one(
     if not sub:
         raise HTTPException(status_code=404, detail="订阅不存在")
     base = str(request.base_url).rstrip("/")
+    limit = sub.rss_max_items if sub.rss_max_items > 0 else 100
     xml = _rss_feed(
         service,
         base,
+        sub,
         f"心流 FlowPulse · {sub.name or book_id}",
         f"公众号「{sub.name or book_id}」最新文章",
-        service.repository.list_articles(book_id)[:100],
+        service.repository.list_articles(book_id)[:limit],
     )
     return _rss_response(xml)
 

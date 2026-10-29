@@ -76,8 +76,8 @@ def test_parse_articles_payload():
 def test_repository_upsert_dedup(tmp_path: Path):
     repo = WereadRepository(tmp_path)
     article = MpArticle(review_id="r1", book_id=BOOK_ID, title="t")
-    assert repo.upsert_articles(BOOK_ID, [article]) == 1
-    assert repo.upsert_articles(BOOK_ID, [article]) == 0
+    assert len(repo.upsert_articles(BOOK_ID, [article])) == 1
+    assert repo.upsert_articles(BOOK_ID, [article]) == []
     assert repo.article_count(BOOK_ID) == 1
 
 

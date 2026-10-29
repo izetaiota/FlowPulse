@@ -18,11 +18,14 @@ class WereadScheduler:
         repository: WereadRepository,
         notifier: WebhookNotifier | None = None,
         interval_minutes: int = 120,
+        qr_login: object | None = None,
     ):
         self.service = service
         self.repository = repository
         self.notifier = notifier
         self.interval_minutes = max(0, int(interval_minutes))
+        # 扫码登录管理器（可选）：Cookie 失效告警时截图二维码推送到通知渠道
+        self._qr_login = qr_login
         self._task: asyncio.Task | None = None
 
     # ---- 生命周期 ----
@@ -102,10 +105,9 @@ class WereadScheduler:
             if self.notifier:
                 if auth_failures:
                     names = "、".join(d.name or d.book_id for d in auth_failures)
-                    await self.notifier.send(
-                        "weread_auth",
-                        "心流 FlowPulse · 微信读书 Cookie 失效",
-                        f"以下订阅采集报登录失效：{names}\n请到浏览器重新复制 Cookie 并更新。",
+                    await self._send_auth_alert(
+                        f"以下订阅采集报登录失效：{names}\n"
+                        "自动续期未恢复，可扫通知附带的二维码（或到系统页面）重新授权。"
                     )
                 elif failures:
                     names = "、".join(d.name or d.book_id for d in failures)
@@ -117,10 +119,9 @@ class WereadScheduler:
         except WereadAPIError as exc:
             result = {"error": exc.message}
             if self.notifier and exc.kind == "auth":
-                await self.notifier.send(
-                    "weread_auth",
-                    "心流 FlowPulse · 微信读书 Cookie 失效",
-                    f"同步中断：{exc.message}\n请到浏览器重新复制 Cookie 并更新。",
+                await self._send_auth_alert(
+                    f"同步中断：{exc.message}\n"
+                    "可扫通知附带的二维码（或到系统页面）重新授权。"
                 )
         finally:
             state = self.repository.load_scheduler_state()
@@ -128,3 +129,24 @@ class WereadScheduler:
             state["last_result"] = result
             self.repository.save_scheduler_state(state)
         return result
+
+    async def _send_auth_alert(self, message: str) -> None:
+        """Cookie 失效告警：有扫码登录管理器时附带二维码截图（飞书图消息），
+        截图不可得（无浏览器/无桌面）退回纯文本，不阻塞同步主流程。"""
+        if not self.notifier:
+            return
+        title = "心流 FlowPulse · 微信读书 Cookie 失效"
+        image: str | None = None
+        if self._qr_login is not None:
+            try:
+                status = self._qr_login.status()
+                if status.get("state") not in {"pending", "validating"}:
+                    await self._qr_login.start()  # 幂等：拉起扫码窗口供就近扫码
+                await asyncio.sleep(8.0)  # 等浏览器打开登录页出现二维码
+                image = await self._qr_login.qr_screenshot_base64()
+            except Exception:
+                image = None
+        if image:
+            await self.notifier.send_image("weread_auth", title, message, image)
+        else:
+            await self.notifier.send("weread_auth", title, message)

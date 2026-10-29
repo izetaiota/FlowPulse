@@ -175,6 +175,12 @@ class PgWereadRepository:
             last_sync_status=row.last_sync_status,
             last_error=row.last_error,
             article_count=article_count,
+            rss_title=row.rss_title or "",
+            rss_description=row.rss_description or "",
+            rss_full_text=row.rss_full_text,
+            rss_max_items=row.rss_max_items or 0,
+            strip_keywords=row.strip_keywords or "",
+            notify_new=row.notify_new if row.notify_new is not None else True,
         )
 
     def list_subscriptions(self) -> list[MpSubscription]:
@@ -204,24 +210,34 @@ class PgWereadRepository:
         return self._sub_dto(row, count)
 
     def upsert_subscription(self, sub: MpSubscription) -> MpSubscription:
+        _custom = dict(
+            name=sub.name,
+            rss_title=sub.rss_title,
+            rss_description=sub.rss_description,
+            rss_full_text=sub.rss_full_text,
+            rss_max_items=sub.rss_max_items,
+            strip_keywords=sub.strip_keywords,
+            notify_new=sub.notify_new,
+        )
         with self._sessionmaker() as session:
             row = session.get(WereadSubscriptionRow, sub.book_id)
             added_at = _parse_iso(sub.added_at) or datetime.now(timezone.utc)
             last_sync_at = _parse_iso(sub.last_sync_at)
             if row:
-                row.name, row.avatar = sub.name, sub.avatar
                 row.added_at, row.last_sync_at = added_at, last_sync_at
                 row.last_sync_status, row.last_error = sub.last_sync_status, sub.last_error
+                for field, value in _custom.items():
+                    setattr(row, field, value)
             else:
                 session.add(
                     WereadSubscriptionRow(
                         book_id=sub.book_id,
-                        name=sub.name,
                         avatar=sub.avatar,
                         added_at=added_at,
                         last_sync_at=last_sync_at,
                         last_sync_status=sub.last_sync_status,
                         last_error=sub.last_error,
+                        **_custom,
                     )
                 )
             session.commit()
@@ -272,8 +288,8 @@ class PgWereadRepository:
         articles.sort(key=article_sort_key, reverse=True)
         return articles
 
-    def upsert_articles(self, book_id: str, incoming: list[MpArticle]) -> int:
-        """按 reviewId 去重合并，返回新增数量。"""
+    def upsert_articles(self, book_id: str, incoming: list[MpArticle]) -> list[MpArticle]:
+        """按 reviewId 去重合并，返回新增的文章（供新文章推送）。"""
         with self._sessionmaker() as session:
             existing_ids = set(
                 session.execute(
@@ -284,23 +300,24 @@ class PgWereadRepository:
                 .scalars()
                 .all()
             )
-            fresh = [
-                WereadArticleRow(
-                    review_id=a.review_id,
-                    book_id=book_id,
-                    title=a.title,
-                    link=a.link,
-                    cover=a.cover,
-                    digest=a.digest,
-                    publish_time=a.publish_time,
-                    created_at=_parse_iso(a.created_at) or datetime.now(timezone.utc),
-                )
-                for a in incoming
-                if a.review_id and a.review_id not in existing_ids
-            ]
-            session.add_all(fresh)
+            fresh_items = [a for a in incoming if a.review_id and a.review_id not in existing_ids]
+            session.add_all(
+                [
+                    WereadArticleRow(
+                        review_id=a.review_id,
+                        book_id=book_id,
+                        title=a.title,
+                        link=a.link,
+                        cover=a.cover,
+                        digest=a.digest,
+                        publish_time=a.publish_time,
+                        created_at=_parse_iso(a.created_at) or datetime.now(timezone.utc),
+                    )
+                    for a in fresh_items
+                ]
+            )
             session.commit()
-            return len(fresh)
+            return fresh_items
 
     def article_count(self, book_id: str) -> int:
         with self._sessionmaker() as session:

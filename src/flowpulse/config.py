@@ -51,10 +51,13 @@ class Settings(BaseSettings):
     weread_credential_key: str = ""
     # 微信读书请求最小间隔（秒），防频率限制
     weread_request_interval_seconds: float = 2.0
-    # 定时同步间隔（分钟），0 = 关闭内置调度
-    weread_sync_interval_minutes: int = 120
+    # 定时同步间隔（分钟），0 = 关闭内置调度。公众号低频更新 + 微信读书风控，
+    # 推荐 30~60：30 推送更及时，60 更稳；不建议低于 15
+    weread_sync_interval_minutes: int = 60
     # 告警 Webhook（飞书/钉钉机器人地址，空 = 不告警）
     weread_webhook_url: str = ""
+    # 附加通知渠道（逗号分隔多个 webhook 地址，与 weread_webhook_url 合并去重）
+    weread_notify_channels: str = ""
     # RSS 是否输出全文（content:encoded，仅对已抓取过正文的文章生效）
     weread_rss_full_text: bool = False
     # Cookie 自动续期间隔（小时）：无头复用扫码浏览器 profile 静默刷新，0 = 关闭

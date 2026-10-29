@@ -149,8 +149,10 @@ def build_runtime(settings: Settings) -> Runtime:
     if settings.weread_cookie and not weread_repository.get_credential():
         weread_repository.save_credential(settings.weread_cookie)
     weread_notifier = (
-        WebhookNotifier(client, settings.weread_webhook_url)
-        if settings.weread_webhook_url
+        WebhookNotifier(
+            client, [settings.weread_webhook_url, settings.weread_notify_channels]
+        )
+        if (settings.weread_webhook_url or settings.weread_notify_channels)
         else None
     )
     menu_repository = MenuRepository(
@@ -173,16 +175,18 @@ def build_runtime(settings: Settings) -> Runtime:
         client,
         request_interval_seconds=settings.weread_request_interval_seconds,
         rss_full_text=settings.weread_rss_full_text,
+        notifier=weread_notifier,  # 新文章推送与告警共用通知渠道
+    )
+    weread_qr_login = WereadQrLoginManager(
+        settings.data_dir / "weread" / "browser_profile",
+        on_cookie=weread_service.save_credential,
     )
     weread_scheduler = WereadScheduler(
         weread_service,
         weread_repository,
         notifier=weread_notifier,
         interval_minutes=settings.weread_sync_interval_minutes,
-    )
-    weread_qr_login = WereadQrLoginManager(
-        settings.data_dir / "weread" / "browser_profile",
-        on_cookie=weread_service.save_credential,
+        qr_login=weread_qr_login,  # Cookie 失效告警可附带扫码二维码
     )
     weread_cookie_refresher = WereadCookieRefresher(
         weread_qr_login,
