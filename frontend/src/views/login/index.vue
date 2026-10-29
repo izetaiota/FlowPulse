@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useAuthStore } from "@/stores/auth";
+import AppLogoMark from "@/components/AppLogoMark.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -41,7 +42,7 @@ async function submit() {
 
       <div class="brand-body">
         <div class="brand-logo-row">
-          <div class="brand-logo">心</div>
+          <AppLogoMark class="brand-logo" />
           <div class="brand-name">心流 FlowPulse</div>
         </div>
 
@@ -82,7 +83,7 @@ async function submit() {
     <main class="login-form-panel">
       <div class="login-form-box">
         <div class="form-mobile-brand">
-          <div class="brand-logo">心</div>
+          <AppLogoMark class="brand-logo brand-logo-sm" />
           <span>心流 FlowPulse</span>
         </div>
 
@@ -200,15 +201,11 @@ async function submit() {
 .brand-logo {
   width: 46px;
   height: 46px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(6px);
-  font-size: 21px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+}
+
+.brand-logo-sm {
+  width: 32px;
+  height: 32px;
 }
 
 .brand-name {
@@ -371,12 +368,6 @@ async function submit() {
 
   .form-mobile-brand {
     display: flex;
-  }
-
-  .form-mobile-brand .brand-logo {
-    background: #4f46e5;
-    border: none;
-    color: #fff;
   }
 }
 </style>

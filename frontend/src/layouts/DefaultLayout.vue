@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
+import AppLogoMark from "@/components/AppLogoMark.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -57,17 +58,7 @@ const menu: MenuItem[] = [
       class="fp-aside transition-[width] duration-200"
     >
       <div class="fp-logo" :class="{ collapsed: appStore.sidebarCollapsed }">
-        <span class="fp-logo-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" fill="none">
-            <path
-              d="M6 16h5l3-7 4 14 3-7h5"
-              stroke="#fff"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </span>
+        <AppLogoMark class="fp-logo-mark" />
         <span v-if="!appStore.sidebarCollapsed" class="fp-logo-text">心流 FlowPulse</span>
       </div>
 
@@ -187,18 +178,8 @@ const menu: MenuItem[] = [
 }
 
 .fp-logo-mark {
-  display: grid;
-  place-items: center;
   width: 30px;
   height: 30px;
-  flex: none;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #6366f1, #a855f7);
-}
-
-.fp-logo-mark svg {
-  width: 20px;
-  height: 20px;
 }
 
 .fp-logo-text {
