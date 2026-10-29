@@ -36,7 +36,7 @@ def test_credential_encrypted_at_rest(tmp_path: Path):
 
     engine = create_engine(f"sqlite:///{tmp_path}/db.sqlite", future=True)
     with engine.connect() as conn:
-        row = conn.execute(text("SELECT cookie, cookie_encrypted FROM weread_credentials")).one()
+        row = conn.execute(text("SELECT cookie, cookie_encrypted FROM fp_weread_credentials")).one()
     assert row.cookie_encrypted == 1
     assert "wr_skey=abc" not in row.cookie
     assert row.cookie.startswith("gAAA")
@@ -53,7 +53,7 @@ def test_credential_wrong_key_returns_none(tmp_path: Path):
 
     engine = create_engine(f"sqlite:///{tmp_path}/db.sqlite", future=True)
     with engine.connect() as conn:
-        row = conn.execute(text("SELECT id FROM weread_credentials")).one()
+        row = conn.execute(text("SELECT id FROM fp_weread_credentials")).one()
     assert row.id == 1  # 单行约束
 
 

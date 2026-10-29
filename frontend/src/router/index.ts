@@ -50,6 +50,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "公众号订阅", icon: "Reading" },
       },
       {
+        path: "xhs",
+        name: "xhs",
+        component: () => import("@/views/xhs/index.vue"),
+        meta: { title: "小红书工作台", icon: "PictureFilled" },
+      },
+      {
+        path: "transcribe",
+        name: "transcribe",
+        component: () => import("@/views/transcribe/index.vue"),
+        meta: { title: "转写任务", icon: "VideoPlay" },
+      },
+      {
         path: "content/create",
         name: "content-create",
         component: () => import("@/views/content/create.vue"),

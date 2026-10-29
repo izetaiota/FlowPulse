@@ -5,15 +5,23 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from flowpulse.core.crypto import CredentialCipher
 from flowpulse.modules.xhs.integration.models import JobRecord, utc_now
 
 
 class CookieStore:
-    """Persist authenticated cookie strings per platform to a JSON file."""
+    """Persist authenticated cookie strings per platform to a JSON file.
 
-    def __init__(self, root: Path):
+    Cookie 值以 Fernet 静态加密落盘（密钥自动生成于 xhs/.credential_key，
+    或由外部传入）；旧版明文读取兼容、下次保存自动升级为密文。
+    """
+
+    def __init__(self, root: Path, credential_key: str = ""):
         self.path = root / "xhs" / "cookies.json"
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._cipher = CredentialCipher(
+            credential_key, key_file=root / "xhs" / ".credential_key"
+        )
         self._lock = threading.Lock()
 
     def _read(self) -> dict[str, str]:
@@ -24,14 +32,28 @@ class CookieStore:
         except (json.JSONDecodeError, OSError):
             return {}
 
+    def _decrypt(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        if value.startswith("gAAA"):
+            if not self._cipher.available:
+                return None
+            try:
+                return self._cipher.decrypt(value)
+            except Exception:
+                return None
+        return value  # 旧版明文
+
     def get(self, platform: str) -> str | None:
         with self._lock:
-            return self._read().get(platform)
+            return self._decrypt(self._read().get(platform))
 
     def set(self, platform: str, cookies: str) -> None:
         with self._lock:
             data = self._read()
-            data[platform] = cookies
+            data[platform] = (
+                self._cipher.encrypt(cookies) if self._cipher.available else cookies
+            )
             self.path.write_text(
                 json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
             )

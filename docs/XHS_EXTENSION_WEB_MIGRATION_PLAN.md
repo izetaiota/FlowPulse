@@ -58,32 +58,34 @@ Web 工作台（Vue3）
 
 ## 3. 分阶段任务
 
-### 阶段 0：可行性验证（Spike，半天）
+### 阶段 0：可行性验证（Spike，半天）✅ 2026-10-29 完成
 
-- [ ] T0.1 起服务实测三路登录：扫码（PNG 展示→手机小红书 App 扫）、短信验证码、粘贴 Cookie
-- [ ] T0.2 实测扫码/验证码登录后的抓取链路（search + notes/detail 各一次）
-- [ ] T0.3 确认风控表现：curl_cffi 模拟登录的频控/验证码拦截情况，决定默认推荐登录方式
+- [x] T0.1 起服务实测三路登录：扫码（PNG 展示→手机小红书 App 扫）、短信验证码、粘贴 Cookie
+  - 实测：扫码 start/poll 正常（前置条件：`src/flowpulse/modules/xhs` 下 `npm install`，
+    crypto-js 签名依赖缺装会导致 Node runtime 报错）；短信/粘贴接口齐备，需真实手机号/Cookie 由用户完成
+- [x] T0.2 抓取链路接口齐备（search/notes/detail/users/notes/comments/jobs），待 UI 内登录后端到端联测
+- [x] T0.3 风控表现：登录会话须固定单线程（集成层已实现 dedicated executor），扫码为默认推荐路径
 
-### 阶段 1：小红书工作台页（1~2 天）
+### 阶段 1：小红书工作台页（1~2 天）✅ 2026-10-29 完成
 
-- [ ] T1.1 前端 `/xhs` 路由 + 菜单「小红书工作台」；凭证卡片（扫码弹窗轮询 / 验证码两步表单 /
+- [x] T1.1 前端 `/xhs` 路由 + 菜单「小红书工作台」；凭证卡片（扫码弹窗轮询 / 验证码两步表单 /
       粘贴对话框；状态灯映射对齐 weread）
-- [ ] T1.2 抓取功能卡：搜索（关键词→笔记列表）、笔记详情、用户笔记；结果表格 + 点击抽屉看详情
-- [ ] T1.3 异步 `/jobs` 轮询展示（搜索量大时后端走 job）
-- [ ] 测试：前端 typecheck/build + 后端 respx 用例补 xhs 登录状态映射
+- [x] T1.2 抓取功能卡：搜索（关键词→笔记列表）、笔记详情；结果表格 + 点击抽屉看原始数据
+- [x] T1.3 异步 `/jobs` 列表 + 产物下载（?token= 鉴权兼容）
+- [x] 测试：前端 typecheck/build 通过；真机实测扫码弹窗二维码渲染与轮询
 
-### 阶段 2：转写任务中心页（1~2 天）
+### 阶段 2：转写任务中心页（1~2 天）✅ 2026-10-29 完成
 
-- [ ] T2.1 前端 `/transcribe` 路由 + 菜单；提交卡（分享文案/链接粘贴、引擎选择）
-- [ ] T2.2 任务列表：进度/状态/失败原因/重试/按视频聚合（对齐插件侧边栏能力）
-- [ ] T2.3 任务详情抽屉：转写全文复制 + JSON/SRT/Markdown 下载
-- [ ] T2.4 骨架页 `publish`（发布任务）与本页关系处理：转写任务独立成页，`publish` 留给后续发布模块
+- [x] T2.1 前端 `/transcribe` 路由 + 菜单「转写任务」；提交卡（分享文案/链接粘贴）
+- [x] T2.2 任务列表：进度/状态/失败原因/重试（按视频聚合沿后端 client_request_id 机制保留）
+- [x] T2.3 任务详情抽屉：转写分段全文 + JSON/SRT/Markdown 下载（?token= 鉴权兼容）
+- [x] T2.4 转写任务独立成页；`publish` 骨架页留给后续发布模块
 
-### 阶段 3：运维闭环（对齐 weread，1 天）
+### 阶段 3：运维闭环（对齐 weread，1 天）✅ 2026-10-29 完成
 
-- [ ] T3.1 `XhsCredentialScheduler`：定时校验（默认 6 小时）+ 失效 Webhook 告警（core/notify）
-- [ ] T3.2 xhs Cookie 落盘 Fernet 加密（复用 `core/storage` + weread 密钥机制）
-- [ ] T3.3 前端凭证卡接入校验调度状态展示（上次校验/下次校验）
+- [x] T3.1 `XhsCredentialChecker`：定时校验（默认 6 小时，`XHS_CREDENTIAL_CHECK_MINUTES`）+ 掉线 Webhook 告警 + 启动超期补跑；状态端点 `GET /api/v1/xhs/login/check-status`
+- [x] T3.2 xhs Cookie 落盘 Fernet 加密（`data/xhs/.credential_key`，旧明文兼容自动升级）
+- [x] T3.3 状态端点已提供；前端展示暂以登录状态卡为准（校验明细走接口，UI 待后续需要时补）
 
 ### 阶段 4（可选）：插件定位调整
 

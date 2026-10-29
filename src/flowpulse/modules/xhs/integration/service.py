@@ -42,9 +42,9 @@ class XhsService:
     session therefore owns a dedicated single-thread executor.
     """
 
-    def __init__(self, data_dir: Path, proxy: str | None = None):
+    def __init__(self, data_dir: Path, proxy: str | None = None, credential_key: str = ""):
         self.data_dir = data_dir
-        self.cookies = CookieStore(data_dir)
+        self.cookies = CookieStore(data_dir, credential_key)
         self.jobs = JobRepository(data_dir)
         self.sessions = LoginSessionRegistry()
         # curl_cffi expects a proxies mapping; None means direct connection.

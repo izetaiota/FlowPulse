@@ -48,6 +48,10 @@ def get_xhs_service() -> XhsService:
     raise RuntimeError("Dependency override is not configured")
 
 
+def get_xhs_credential_checker():
+    raise RuntimeError("Dependency override is not configured")
+
+
 def _qr_png_base64(qr_url: str) -> str:
     import qrcode
 
@@ -133,6 +137,12 @@ async def phone_verify(
         return await service.phone_verify(request.session_id, request.code)
     except Exception as exc:
         raise HTTPException(502, str(exc)) from exc
+
+
+@router.get("/login/check-status")
+async def login_check_status(checker=Depends(get_xhs_credential_checker)) -> dict:
+    """凭证定时校验调度状态与上次结果。"""
+    return checker.status()
 
 
 # --- data (quick) --------------------------------------------------------

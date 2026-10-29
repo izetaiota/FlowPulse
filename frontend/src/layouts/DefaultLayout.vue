@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAppStore } from "@/stores/app";
+import { useMenuStore } from "@/stores/menu";
 import { useAuthStore } from "@/stores/auth";
 import AppLogoMark from "@/components/AppLogoMark.vue";
 
@@ -18,36 +19,21 @@ function handleLogout() {
   router.replace("/login");
 }
 
-interface MenuLeaf {
-  index: string;
-  title: string;
-}
+const menuStore = useMenuStore();
 
-interface MenuItem extends MenuLeaf {
-  icon: string;
-  children?: MenuLeaf[];
-}
+onMounted(() => menuStore.load());
+// 菜单数据驱动：后端 app_menus 表（失败时 store 内置兜底，导航不消失）
+const menu = computed(() =>
+  menuStore.menuTree.map((item) => ({
+    index: item.path,
+    title: item.title,
+    icon: item.icon,
+    children: item.children?.length
+      ? item.children.map((child) => ({ index: child.path, title: child.title }))
+      : undefined,
+  })),
+);
 
-const menu: MenuItem[] = [
-  { index: "/dashboard", title: "驾驶舱", icon: "Odometer" },
-  { index: "/accounts", title: "账号管理", icon: "Connection" },
-  { index: "/messages", title: "消息中心", icon: "ChatDotRound" },
-  { index: "/topics", title: "选题管理", icon: "Calendar" },
-  { index: "/materials", title: "素材库", icon: "FolderOpened" },
-  { index: "/weread", title: "公众号订阅", icon: "Reading" },
-  { index: "/content/create", title: "内容创作", icon: "EditPen" },
-  { index: "/publish", title: "发布任务", icon: "Promotion" },
-  {
-    index: "/reports/content",
-    title: "数据报表",
-    icon: "DataAnalysis",
-    children: [
-      { index: "/reports/content", title: "内容大盘" },
-      { index: "/reports/ads", title: "投流大盘" },
-    ],
-  },
-  { index: "/settings", title: "系统设置", icon: "Setting" },
-];
 </script>
 
 <template>

@@ -16,4 +16,9 @@ export const authApi = {
   getSession: () => client.get<AuthSession>("/auth/session") as unknown as Promise<AuthSession>,
   login: (username: string, password: string) =>
     client.post<LoginResult>("/auth/login", { username, password }) as unknown as Promise<LoginResult>,
+  changePassword: (oldPassword: string, newPassword: string) =>
+    client.post("/auth/password", {
+      old_password: oldPassword,
+      new_password: newPassword,
+    }) as unknown as Promise<{ message: string }>,
 };

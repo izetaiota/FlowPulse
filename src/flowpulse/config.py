@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     weread_rss_full_text: bool = False
     # Cookie 自动续期间隔（小时）：无头复用扫码浏览器 profile 静默刷新，0 = 关闭
     weread_cookie_refresh_hours: int = 24
+    # --- XHS（小红书）---
+    # 小红书登录态定时校验（分钟），掉线时推 Webhook 告警，0 = 关闭
+    xhs_credential_check_minutes: int = 360
+    # 小红书 Cookie 静态加密密钥（Fernet）；空 = 自动生成 data/xhs/.credential_key
+    xhs_credential_key: str = ""
 
 
 @lru_cache

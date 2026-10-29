@@ -1,11 +1,13 @@
-"""weread 模块的数据库表定义（与文件存储 data/weread/ 一一对应）。
+"""数据库表定义（表名统一 fp_ 前缀；与文件存储 data/ 一一对应）。
 
 表结构：
-  weread_subscriptions  订阅（book_id 主键）；删除时级联清文章与正文
-  weread_articles       文章（review_id 主键，reviewId 去重语义与文件版一致）
-  weread_contents       正文缓存（review_id 主键，独立成表避免列表查询拖大字段）
-  weread_credentials    凭证（单行 id=1；cookie 以 Fernet 密文落库）
-  weread_kv             调度器等键值状态（scheduler / cookie_refresher）
+  fp_weread_subscriptions  订阅（book_id 主键）；删除时级联清文章与正文
+  fp_weread_articles       文章（review_id 主键，reviewId 去重语义与文件版一致）
+  fp_weread_contents       正文缓存（review_id 主键，独立成表避免列表查询拖大字段）
+  fp_weread_credentials    凭证（单行 id=1；cookie 以 Fernet 密文落库）
+  fp_weread_kv             调度器等键值状态（scheduler / cookie_refresher）
+  fp_app_menus             侧栏菜单（数据驱动）
+  fp_users                 Web 登录账号（单行 id=1；密码 PBKDF2 哈希，永不存明文）
 """
 
 from __future__ import annotations
@@ -38,7 +40,7 @@ def utc_now() -> datetime:
 
 
 class WereadSubscriptionRow(Base):
-    __tablename__ = "weread_subscriptions"
+    __tablename__ = "fp_weread_subscriptions"
 
     book_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(255), default="")
@@ -50,12 +52,12 @@ class WereadSubscriptionRow(Base):
 
 
 class WereadArticleRow(Base):
-    __tablename__ = "weread_articles"
-    __table_args__ = (Index("ix_weread_articles_book_publish", "book_id", "publish_time"),)
+    __tablename__ = "fp_weread_articles"
+    __table_args__ = (Index("ix_fp_weread_articles_book_publish", "book_id", "publish_time"),)
 
     review_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     book_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("weread_subscriptions.book_id", ondelete="CASCADE")
+        String(64), ForeignKey("fp_weread_subscriptions.book_id", ondelete="CASCADE")
     )
     title: Mapped[str] = mapped_column(Text, default="")
     link: Mapped[str] = mapped_column(Text, default="")
@@ -66,10 +68,10 @@ class WereadArticleRow(Base):
 
 
 class WereadContentRow(Base):
-    __tablename__ = "weread_contents"
+    __tablename__ = "fp_weread_contents"
 
     review_id: Mapped[str] = mapped_column(
-        String(128), ForeignKey("weread_articles.review_id", ondelete="CASCADE"),
+        String(128), ForeignKey("fp_weread_articles.review_id", ondelete="CASCADE"),
         primary_key=True,
     )
     book_id: Mapped[str] = mapped_column(String(64))
@@ -80,8 +82,8 @@ class WereadContentRow(Base):
 
 
 class WereadCredentialRow(Base):
-    __tablename__ = "weread_credentials"
-    __table_args__ = (CheckConstraint("id = 1", name="ck_weread_credentials_single_row"),)
+    __tablename__ = "fp_weread_credentials"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_fp_weread_credentials_single_row"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     cookie: Mapped[str] = mapped_column(Text, default="")
@@ -93,7 +95,36 @@ class WereadCredentialRow(Base):
 
 
 class WereadKvRow(Base):
-    __tablename__ = "weread_kv"
+    __tablename__ = "fp_weread_kv"
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+
+
+class AppMenuRow(Base):
+    """侧栏菜单（数据驱动，支持两级：parent 为空是顶级，否则为其 id）。"""
+
+    __tablename__ = "fp_app_menus"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    title: Mapped[str] = mapped_column(String(64), default="")
+    path: Mapped[str] = mapped_column(String(128), default="")
+    icon: Mapped[str] = mapped_column(String(64), default="")
+    parent: Mapped[str | None] = mapped_column(String(64))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    visible: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class UserRow(Base):
+    """Web 登录账号（单账号单行 id=1；密码只存 PBKDF2 哈希，永不落明文）。"""
+
+    __tablename__ = "fp_users"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_fp_users_single_row"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    username: Mapped[str] = mapped_column(String(64), default="admin")
+    password_hash: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
