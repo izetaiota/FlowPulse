@@ -1,31 +1,33 @@
-# 心流 FlowPulse
+# FlowPulse 心流
 
-> **繁杂交给系统，创作进入心流。**
+English | [中文](./README.zh.md)
 
-**心流 FlowPulse** —— 面向个人博主、独立创作者的自媒体全域运营工作台。规划打通公众号 / 抖音 / 小红书 / 视频号，把选题库、素材库、多渠道消息聚合、批量分发、内容数据、投流 ROI 复盘收进一个系统，支持 SaaS 与 Docker 私有化本地部署。核心主张：不是帮你管控账号，而是砍掉运营琐事，保护你的创作状态。
+> **Hand the busywork to the system — get back to creating.**
 
-- 官网：<https://izetaiota.github.io/FlowPulse/>
-- 产品文档：[plan.md](plan.md)（命名方案、竞品调研、功能清单、官网文案、技术架构）
-- 技术方案：[docs/](docs/) 目录（抖音转写流水线、公众号 RSS 迁移计划等）
+**FlowPulse** (Chinese: 心流) is an all-in-one content-operations workbench for individual bloggers and independent creators. It aims to connect WeChat Official Accounts, Douyin, Xiaohongshu (RED) and WeChat Channels, and bring topic planning, asset management, unified inbox, batch publishing, content analytics and ad-spend ROI review into a single system — deployable as SaaS or self-hosted via Docker. The core idea: not to manage your accounts for you, but to cut away operational chores and protect your creative flow.
 
-## 项目状态
+- Website: <https://izetaiota.github.io/FlowPulse/>
+- Product docs: [plan.md](plan.md) (naming, competitor research, feature list, website copy, architecture — in Chinese)
+- Technical docs: the [docs/](docs/) directory (Douyin transcription pipeline, Official Account RSS migration plan, etc.)
 
-FlowPulse 处于 **早期开发阶段**，按「内容采集 → 工作台 → 分发与数据」的路径推进 MVP。当前已落地：
+## Project Status
 
-| 能力 | 目录 | 状态 | 说明 |
+FlowPulse is in an **early stage of development**, advancing the MVP along the path "content ingestion → workbench → publishing & analytics". Currently available:
+
+| Capability | Directory | Status | Notes |
 | --- | --- | --- | --- |
-| 公众号订阅 RSS（微信读书通道） | `src/flowpulse/modules/weread/` | ✅ 可用 | 订阅增删、增量同步、站内阅读、RSS 输出、内置定时调度、Webhook 告警 |
-| 抖音转写 | `src/flowpulse/modules/douyin/` | ✅ 可用 | 短视频解析 + 语音转写，输出结构化语料（JSON / SRT / Markdown） |
-| 小红书抓取 | `src/flowpulse/modules/xhs/` | ✅ 可用 | 笔记 / 用户 / 搜索抓取、媒体下载、Excel 导出（真实账号实测通过） |
-| 工作台前端 | `frontend/` | 🚧 骨架 | Vue3 + Element Plus；公众号订阅页已可用，其余页面为占位 |
-| 官网落地页 | `website/` | ✅ 上线 | GitHub Pages 自动部署 |
-| 消息中心 / 选题库 / 素材库 / 批量分发 / 内容与投流数据 | — | 📋 规划 | 见 [plan.md](plan.md) 功能需求清单 |
+| Official Account RSS (WeRead channel) | `src/flowpulse/modules/weread/` | ✅ Working | Subscribe / incremental sync / in-app reading / RSS output / built-in scheduling / webhook alerts |
+| Douyin transcription | `src/flowpulse/modules/douyin/` | ✅ Working | Short-video parsing + speech-to-text, structured output (JSON / SRT / Markdown) |
+| Xiaohongshu crawling | `src/flowpulse/modules/xhs/` | ✅ Working | Note / user / search crawling, media download, Excel export (verified with a real account) |
+| Workbench frontend | `frontend/` | 🚧 Skeleton | Vue 3 + Element Plus; subscription, Xiaohongshu and transcription pages are wired up, the rest are placeholders |
+| Website landing page | `website/` | ✅ Live | Auto-deployed to GitHub Pages |
+| Unified inbox / topics / asset library / batch publishing / content & ad analytics | — | 📋 Planned | See the feature list in [plan.md](plan.md) |
 
-## 快速开始
+## Getting Started
 
-### 后端
+### Backend
 
-本地 Python 3.11+，无需 Docker：
+Python 3.11+ locally, no Docker required:
 
 ```powershell
 git clone https://github.com/izetaiota/FlowPulse.git
@@ -37,45 +39,37 @@ python -m venv .venv
 
 Copy-Item .env.example .env
 
-.\.venv\Scripts\python.exe -m uvicorn metacorpus.main:app `
+.\.venv\Scripts\python.exe -m uvicorn flowpulse.main:app `
   --host 127.0.0.1 `
   --port 8000
 ```
 
-打开以下地址：
+Then open:
 
-- Swagger API 文档：<http://127.0.0.1:8000/docs>
-- 存活检查：<http://127.0.0.1:8000/health/live>
-- 就绪检查：<http://127.0.0.1:8000/health/ready>
+- Swagger API docs: <http://127.0.0.1:8000/docs>
+- Liveness check: <http://127.0.0.1:8000/health/live>
+- Readiness check: <http://127.0.0.1:8000/health/ready>
 
-### 工作台前端
+### Workbench frontend
 
 ```powershell
 cd frontend
 pnpm install
-pnpm dev        # http://localhost:5173，/api 代理到 127.0.0.1:8000
+pnpm dev        # http://localhost:5173, /api proxied to 127.0.0.1:8000
 ```
 
-页面模块（驾驶舱、账号管理、消息中心、选题、素材、公众号订阅、内容创作、发布任务、数据报表、设置）详见 [frontend/README.md](frontend/README.md)。
+See [frontend/README.md](frontend/README.md) for the page modules (dashboard, accounts, inbox, topics, assets, subscriptions, content creation, publishing, reports, settings).
 
-### Docker 部署（单容器，前后端合一）
+### Docker deployment (single container, frontend + backend)
 
 ```bash
 docker compose up -d --build
 ```
 
-打开 <http://127.0.0.1:8000> 即是工作台前端页面，`/api` 同源直达后端；运行时数据全部落在宿主机 `./data` 目录。
+Open <http://127.0.0.1:8000> for the workbench frontend; `/api` hits the backend on the same origin. All runtime data lives in the host `./data` directory.
 
-- 配置：把 `.env.example` 复制为 `.env` 放在项目根目录（转写引擎、微信读书 Cookie、Webhook 告警等），compose 会自动注入容器。
-- 国内网络构建不畅时，可用 `--build-arg` 覆盖基础镜像与软件源（详见 `Dockerfile` 头部注释）：
-
-### 存储方案：文件 / PostgreSQL 双模式
-
-- **默认零依赖文件存储**：不设置 `DATABASE_URL`，数据存 `data/` 目录（JSON 原子写），拷走目录即完整备份。
-- **PostgreSQL 模式**：设置 `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/flowpulse`（需 `pip install -e ".[postgres]"`），weread 模块切换到数据库存储——订阅 / 文章 / 正文缓存 / 凭证 / 调度状态分表存放，正文独立成表避免列表查询拖大字段；docker-compose 已内置 `postgres:16` 服务，默认走 PG 模式（想用文件存储删掉该变量与 postgres 服务即可）。
-- 表结构由 Alembic 管理（`python -m alembic upgrade head`，连接串取 `DATABASE_URL`）；应用启动时也会幂等建表，空库开箱即用。
-- 从文件存储迁移到 PG：`DATABASE_URL=... PYTHONPATH=src python scripts/migrate_weread_to_pg.py`（幂等，可重复执行）。
-- Cookie 在两种模式下均为 Fernet 静态加密，密钥共用 `data/weread/.credential_key`（或 `WEREAD_CREDENTIAL_KEY`），切换后端密文互通。
+- Configuration: copy `.env.example` to `.env` in the project root (transcription engines, WeRead cookie, webhook alerts, etc.); compose injects it into the container.
+- If the default registries are slow or blocked (e.g. mainland China networks), override the base images and package mirrors with `--build-arg` (see the header comments in `Dockerfile`):
 
   ```bash
   docker build \
@@ -87,182 +81,188 @@ docker compose up -d --build
     -t flowpulse:latest .
   ```
 
-- 镜像内置 FFmpeg（抖音音频提取）与 Node.js（小红书签名运行时）；因包含 opencv 等依赖，镜像体积约 1.5 GB。
-- 扫码登录类功能（微信读书扫码续期、XHS 扫码登录）需要驱动本机可见浏览器，容器内不可用，请在容器内使用 Cookie 方式配置凭证。
+- The image ships FFmpeg (Douyin audio extraction) and Node.js (Xiaohongshu signing runtime); due to opencv and other dependencies the image is roughly 1.5 GB.
+- QR-code login features (WeRead re-login, XHS QR login) need a visible local browser and do not work inside the container — configure credentials via cookie instead.
 
-## Web 登录（单账号）
+### Storage: file / PostgreSQL dual mode
 
-工作台支持单账号登录（无菜单权限体系，V1 面向单人使用）：
+- **Default, zero-dependency file storage**: leave `DATABASE_URL` unset and everything is stored under `data/` (atomic JSON writes); copying the directory is a complete backup.
+- **PostgreSQL mode**: set `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/flowpulse` (requires `pip install -e ".[postgres]"`); the weread module then switches to database storage — subscriptions / articles / content cache / credentials / scheduler state live in separate tables, with article content isolated in its own table so list queries never drag large columns along. docker-compose ships a `postgres:16` service and defaults to PG mode (remove the variable and the postgres service to use file storage).
+- The schema is managed by Alembic (`python -m alembic upgrade head`, connection string from `DATABASE_URL`); the app also creates missing tables idempotently on startup, so an empty database works out of the box.
+- Migrating from file storage to PG: `DATABASE_URL=... PYTHONPATH=src python scripts/migrate_weread_to_pg.py` (idempotent, safe to re-run).
+- Cookies are Fernet-encrypted at rest in both modes, sharing the key `data/weread/.credential_key` (or `WEREAD_CREDENTIAL_KEY`); ciphertexts are interchangeable across backends.
 
-- **默认关闭**：不设置 `ADMIN_PASSWORD` 时无登录页、所有接口直通（本地零配置体验不变）；
-- **启用**：设置环境变量 `ADMIN_USERNAME`（默认 `admin`）与 `ADMIN_PASSWORD` 后，前端出现登录页，
-  全部 API 需携带 Bearer Token（登录后自动注入，7 天有效期，服务重启不失效）；
-- RSS 阅读器等无法带 Header 的客户端可用查询参数：`/api/weread/rss/all.xml?token=<登录token>`；
-  `/health/*` 探活接口不锁；Token 由服务端 HMAC 签名（密钥自动生成于 `data/.auth_secret`）；
-- 退出：右上角用户菜单「退出登录」。
+## Web login (single account)
 
-## 定时任务（console CLI）
+The workbench supports a single-account login (no per-menu permissions — V1 targets a single user):
 
-`src/flowpulse/console/` 提供一次性任务 CLI，跑完即退出，配合外部调度（crontab / Windows 任务计划 / `docker compose run`）定时执行；与应用内置的常驻调度循环（微信读书同步、Cookie 续期、小红书凭证校验）互补，适合「关掉内置调度、统一由系统 cron 驱动」或临时手动补跑的场景。
+- **Off by default**: without `ADMIN_PASSWORD` there is no login page and every endpoint is open (the zero-config local experience stays unchanged).
+- **Enabled**: set `ADMIN_USERNAME` (default `admin`) and `ADMIN_PASSWORD`, and the frontend shows a login page; every API then requires a Bearer token (injected automatically after login, valid for 7 days, survives service restarts).
+- Header-less clients such as RSS readers can use a query parameter: `/api/weread/rss/all.xml?token=<login token>`; `/health/*` probes stay open. Tokens are HMAC-signed server-side (secret auto-generated at `data/.auth_secret`).
+- Logout via the user menu in the top-right corner.
+
+## Scheduled tasks (console CLI)
+
+`src/flowpulse/console/` provides one-shot task commands that exit when done, designed for external schedulers (crontab / Windows Task Scheduler / `docker compose run`). They complement the in-app resident schedulers (WeRead sync, cookie refresh, XHS credential checks) — useful when you prefer to disable the built-in loops and drive everything from system cron, or just need a manual catch-up run.
 
 ```bash
-python -m flowpulse.console list                  # 列出全部任务
-python -m flowpulse.console weread-sync           # 全量订阅增量同步一次
-python -m flowpulse.console weread-status         # 凭证/订阅健康检查（异常退出码非 0）
-python -m flowpulse.console weread-refresh-cookie # 无头 Cookie 续期一次（需本机浏览器 profile）
-python -m flowpulse.console xhs-check             # 小红书登录态校验一次
+python -m flowpulse.console list                  # list all tasks
+python -m flowpulse.console weread-sync           # incremental sync of all subscriptions
+python -m flowpulse.console weread-status         # credential/subscription health check (non-zero exit on failure)
+python -m flowpulse.console weread-refresh-cookie # headless cookie refresh (needs a local browser profile)
+python -m flowpulse.console xhs-check             # Xiaohongshu login-state check
 ```
 
-pip 安装后也可用 `flowpulse-console <task>` 命令。任务输出 JSON 摘要（含 `ok` 字段），失败时进程退出码非 0，便于 cron 与监控系统判定。
+After a pip install the `flowpulse-console <task>` command is also available. Each task prints a JSON summary (with an `ok` field) and exits non-zero on failure, which is easy for cron and monitoring systems to consume.
 
-定时执行示例：
+Scheduling examples:
 
 ```bash
-# Linux crontab：每 2 小时同步一次公众号
+# Linux crontab: sync official accounts every 2 hours
 0 */2 * * * cd /opt/flowpulse && python -m flowpulse.console weread-sync >> data/cron.log 2>&1
 
-# Windows 任务计划（每天 09:05 检查凭证）
+# Windows Task Scheduler: check credentials daily at 09:05
 schtasks /Create /TN FlowPulseStatus /SC DAILY /ST 09:05 /TR "python -m flowpulse.console weread-status"
 
-# Docker（复用镜像与挂载的 data 卷）
+# Docker (reuses the image and the mounted data volume)
 docker compose run --rm flowpulse python -m flowpulse.console weread-sync
 ```
 
-## 公众号订阅 RSS（微信读书通道）
+## Official Account RSS (WeRead channel)
 
-`src/flowpulse/modules/weread/` 基于 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT）的微信读书通道思路实现，是把公众号内容收进 FlowPulse 的第一步：**订阅公众号 → 定时增量同步 → 站内浏览 / RSS 输出**。
+`src/flowpulse/modules/weread/` implements the WeRead channel approach of [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss) (MIT): the first step of bringing Official Account content into FlowPulse — **subscribe → scheduled incremental sync → in-app reading / RSS output**.
 
-工作原理：
+How it works:
 
-1. 在 **微信读书 App** 中订阅目标公众号（公众号在微信读书里表现为一种"书籍"，bookId 形如 `MP_WXS_3012726261`）；
-2. FlowPulse 持有微信读书网页版 Cookie（关键键：`wr_vid`、`wr_skey`），轮询微信读书 Web API 拉取文章；
-3. 从记录 ID 推导公众号原文链接（需将 token 中的 `~` 还原为 `_`，否则微信返回"参数错误"）；
-4. 订阅关系由 FlowPulse 自行维护（新版微信读书书架接口不再返回公众号列表），添加订阅时粘贴微信读书链接或 bookId 即可。
+1. Subscribe to the target Official Account inside the **WeRead app** (an account appears as a "book" there, with a bookId like `MP_WXS_3012726261`).
+2. FlowPulse holds your WeRead web cookie (key fields: `wr_vid`, `wr_skey`) and polls the WeRead web API for new articles.
+3. The original article URL is derived from the record ID (the token's `~` must be restored to `_`, otherwise WeChat returns "invalid parameter").
+4. Subscription state is maintained by FlowPulse itself (newer WeRead shelf APIs no longer return Official Accounts); adding a subscription takes a pasted WeRead link or bookId.
 
-### 使用流程
+### Usage flow
 
-1. **扫码授权（推荐）**：前端 `/weread` 页面点「扫码登录」（或 `POST /api/weread/credential/qr-login`），
-   服务器所在电脑会弹出浏览器窗口显示微信读书登录二维码，手机微信扫码确认后 Cookie 自动捕获、校验、入库；
-2. 也可手动粘贴 Cookie：浏览器登录微信读书网页版后复制 Cookie，`POST /api/weread/credential` 保存
-   （或 `.env` 中 `WEREAD_COOKIE`，服务启动时自动导入）；
-3. 添加订阅：`POST /api/weread/subscriptions`，请求体 `{"input": "<微信读书链接或bookId>"}`，会自动反查公众号名称头像并入库最新一篇；
-4. 手动全量同步：`POST /api/weread/sync`；此后由内置调度器定时增量同步；
-5. 在 RSS 阅读器订阅输出，或在工作台前端 `/weread` 页面管理全部流程。
+1. **QR-code login (recommended)**: click "Scan to login" on the `/weread` page (or `POST /api/weread/credential/qr-login`); a browser window with the WeRead login QR code opens on the machine running the server, and after scanning the cookie is captured, validated and stored automatically.
+2. Or paste a cookie manually: log into the WeRead web client, copy the cookie, and save it via `POST /api/weread/credential` (or set `WEREAD_COOKIE` in `.env`, imported on startup).
+3. Add a subscription: `POST /api/weread/subscriptions` with `{"input": "<WeRead link or bookId>"}`; the account name and avatar are resolved automatically and the latest article is stored.
+4. Manual full sync: `POST /api/weread/sync`; afterwards the built-in scheduler keeps things in sync incrementally.
+5. Subscribe to the RSS output in your reader, or manage everything from the `/weread` page in the workbench.
 
-> 扫码/续期依赖 Playwright 驱动本机浏览器：`pip install -e ".[weread]"`（优先复用本机已装的 Chrome/Edge，无需下载浏览器）。
-> 历史文章说明：微信读书列表接口对部分账号已废弃，此类账号走 cover 通道**只能从订阅时的最新一篇开始追新**，无法批量回补历史。
+> QR login/refresh relies on Playwright driving a local browser: `pip install -e ".[weread]"` (it prefers an existing local Chrome/Edge, no browser download needed).
+> Note on history: the WeRead list API is deprecated for some accounts; those accounts only track new articles from the latest one at subscription time via the cover channel — backfilling history is not possible.
 
-### API 一览
+### API overview
 
-| 分组 | 接口 |
+| Group | Endpoints |
 | --- | --- |
-| 凭证 | `POST /api/weread/credential`（保存）、`GET`（查看脱敏状态）、`DELETE`、`POST /api/weread/credential/validate`（即时校验有效性） |
-| 扫码登录 | `POST /api/weread/credential/qr-login`（弹出浏览器窗口扫码）、`GET`（会话状态轮询）、`DELETE`（取消） |
-| Cookie 续期 | `POST /api/weread/credential/refresh`（手动无头续期一次）、`GET`（续期调度状态与上次结果） |
-| 订阅 | `GET /api/weread/subscriptions`、`POST`（添加）、`DELETE /api/weread/subscriptions/{book_id}` |
-| 文章 | `GET /api/weread/subscriptions/{book_id}/articles`（游标分页）、`GET /api/weread/articles/{book_id}/{review_id}/content`（站内阅读，正文按需抓取并缓存） |
-| 同步 | `POST /api/weread/sync`（全部）、`POST /api/weread/subscriptions/{book_id}/sync`（单个）、`GET /api/weread/status`（凭证与各订阅健康状态） |
-| RSS | `GET /api/weread/rss/all.xml`（全部订阅合并）、`GET /api/weread/rss/{book_id}.xml`（单个公众号） |
-| 调度 | `GET /api/weread/scheduler`（状态）、`POST /api/weread/scheduler/trigger`（手动触发一轮） |
+| Credential | `POST /api/weread/credential` (save), `GET` (masked status), `DELETE`, `POST /api/weread/credential/validate` (immediate validity check) |
+| QR login | `POST /api/weread/credential/qr-login` (opens a browser window), `GET` (poll session status), `DELETE` (cancel) |
+| Cookie refresh | `POST /api/weread/credential/refresh` (one manual headless refresh), `GET` (refresh schedule and last result) |
+| Subscriptions | `GET /api/weread/subscriptions`, `POST` (add), `DELETE /api/weread/subscriptions/{book_id}` |
+| Articles | `GET /api/weread/subscriptions/{book_id}/articles` (cursor pagination), `GET /api/weread/articles/{book_id}/{review_id}/content` (in-app reading, content fetched on demand and cached) |
+| Sync | `POST /api/weread/sync` (all), `POST /api/weread/subscriptions/{book_id}/sync` (one), `GET /api/weread/status` (credential and per-subscription health) |
+| RSS | `GET /api/weread/rss/all.xml` (all subscriptions merged), `GET /api/weread/rss/{book_id}.xml` (single account) |
+| Scheduler | `GET /api/weread/scheduler` (status), `POST /api/weread/scheduler/trigger` (trigger one round manually) |
 
-### 配置项
+### Configuration
 
 ```env
-WEREAD_COOKIE=                        # 启动时导入的微信读书 Cookie（可选，也可走 API/扫码）
-WEREAD_CREDENTIAL_KEY=                # Cookie 静态加密密钥（Fernet）；空 = 自动生成并保存到 data/weread/.credential_key
-WEREAD_REQUEST_INTERVAL_SECONDS=2.0   # 对微信读书接口的限速间隔
-WEREAD_SYNC_INTERVAL_MINUTES=120      # 定时同步周期；<=0 关闭内置调度
-WEREAD_COOKIE_REFRESH_HOURS=24        # Cookie 无头自动续期周期（复用扫码浏览器登录态）；<=0 关闭
-WEREAD_WEBHOOK_URL=                   # 告警 Webhook（飞书/钉钉群机器人），Cookie 失效、同步失败、需重新扫码时推送
-WEREAD_RSS_FULL_TEXT=false            # RSS 是否输出全文（默认仅标题+链接+摘要）
+WEREAD_COOKIE=                        # WeRead cookie imported on startup (optional; API/QR login also work)
+WEREAD_CREDENTIAL_KEY=                # Fernet key for cookie encryption at rest; empty = auto-generated to data/weread/.credential_key
+WEREAD_REQUEST_INTERVAL_SECONDS=2.0   # rate-limit interval between WeRead API calls
+WEREAD_SYNC_INTERVAL_MINUTES=120      # sync period; <=0 disables the built-in scheduler
+WEREAD_COOKIE_REFRESH_HOURS=24        # headless cookie auto-refresh period; <=0 disables
+WEREAD_WEBHOOK_URL=                   # alert webhook (Feishu/DingTalk bot) for cookie expiry, sync failures, re-login needed
+WEREAD_RSS_FULL_TEXT=false            # full text in RSS output (default: title + link + summary)
 ```
 
-数据保存在 `data/weread/`（订阅、文章、正文缓存、调度状态、浏览器登录态 profile，文件型存储）。Cookie 在磁盘上以 Fernet 加密保存（密钥见 `WEREAD_CREDENTIAL_KEY`），有效期内由每日无头续期自动轮换 `wr_skey`；登录态彻底失效时会标记凭证失效并推送 Webhook，到页面重新扫码一次即恢复（扫码后 profile 留存，续期继续自动转）。同步过程中检测到 Cookie 被其他端轮换失效时，会自动触发一次无头续期并重试（15 分钟冷却），无需人工干预；删除凭证会同时清除浏览器登录态 profile，不残留可复原的登录态。服务重启后，超期的同步/续期任务会在启动时自动补跑。
+Data lives in `data/weread/` (subscriptions, articles, content cache, scheduler state, browser login profile). Cookies are stored Fernet-encrypted (see `WEREAD_CREDENTIAL_KEY`); while valid, `wr_skey` rotates automatically via the daily headless refresh. When the login profile dies completely, the credential is marked invalid and a webhook alert is sent — scan once on the page to recover (the profile persists afterwards and refresh continues automatically). If a sync detects the cookie was rotated by another device, one headless refresh plus a retry fires automatically (15-minute cooldown) with no manual intervention. Deleting the credential also wipes the browser login profile. After a service restart, overdue sync/refresh runs catch up automatically at startup.
 
-> 微信读书接口为非官方通道，本项目按"个人私有化使用 + 限速 + 过期告警"设计，请勿高频大量拉取。迁移决策与技术细节见 [docs/WECHAT_WEREAD_RSS_PLAN.md](docs/WECHAT_WEREAD_RSS_PLAN.md)。
+> The WeRead channel is an unofficial API. This project is designed for "personal self-hosted use + rate limiting + expiry alerts" — please do not pull at high frequency or volume. See [docs/WECHAT_WEREAD_RSS_PLAN.md](docs/WECHAT_WEREAD_RSS_PLAN.md) for the migration decision and technical details.
 
-## 抖音转写
+## Douyin transcription
 
-输入抖音分享链接或完整分享文案，解析视频、优先提取内嵌字幕，无字幕时调用本地模型、阿里听悟或 OpenAI-compatible API 完成语音转写。
+Feed in a Douyin share link or the full share text; the video is resolved, embedded subtitles preferred, and when absent the audio is transcribed by a local model, Aliyun Tingwu or an OpenAI-compatible API.
 
 ```text
-抖音分享文本或 URL
-  -> 解析分享页或备用 Resolver API
-  -> 获取视频信息和播放地址
-  -> 检查内嵌字幕
-     -> 有字幕：直接标准化
-     -> 无字幕：下载视频 -> FFmpeg 提取音频 -> 调用转写引擎
-  -> 生成 source.json / transcript.json / transcript.srt / notes.md
+Douyin share text or URL
+  -> resolve the share page or a fallback Resolver API
+  -> fetch video info and playback URL
+  -> check for embedded subtitles
+     -> present: normalize directly
+     -> absent: download video -> FFmpeg extracts audio -> call a transcription engine
+  -> produce source.json / transcript.json / transcript.srt / notes.md
 ```
 
-- 支持短链接、普通链接和完整分享文案，可配置备用 Resolver API（`DOUYIN_RESOLVER_BASE_URL`）。
-- 转写引擎：**阿里听悟**、**faster-whisper**（`pip install -e ".[whisper]"`）、**SenseVoice**（`pip install -e ".[sensevoice]"`）、**OpenAI-compatible API**、**Mock**（接口冒烟，仅显式指定时生效）。
-- FFmpeg 查找顺序：环境变量 `FFMPEG_PATH` → 系统 `PATH` → 项目目录 `.tools/ffmpeg/bin/ffmpeg.exe`。
-- 异步任务模型：`POST /api/v1/tasks/transcribe` 创建（202），`GET /api/v1/tasks/<task-id>` 查询，`POST .../retry` 重试，`GET .../artifacts` 获取产物。
+- Supports short links, regular links and full share text, with an optional fallback Resolver API (`DOUYIN_RESOLVER_BASE_URL`).
+- Engines: **Aliyun Tingwu**, **faster-whisper** (`pip install -e ".[whisper]"`), **SenseVoice** (`pip install -e ".[sensevoice]"`), **OpenAI-compatible API**, **Mock** (API smoke tests, only when explicitly requested).
+- FFmpeg lookup order: `FFMPEG_PATH` env var → system `PATH` → `.tools/ffmpeg/bin/ffmpeg.exe` in the project.
+- Async task model: `POST /api/v1/tasks/transcribe` to create (202), `GET /api/v1/tasks/<task-id>` to poll, `POST .../retry` to retry, `GET .../artifacts` to download.
 
-产物目录：
+Artifacts:
 
 ```text
 data/tasks/<task-id>/
-  task.json          # 请求、状态、进度、错误和产物列表
-  source.json        # 抖音视频信息和原始元数据
-  transcript.json    # 全文、引擎和分段时间轴
-  transcript.srt     # 标准 SRT 字幕
-  notes.md           # 带来源信息的 Markdown 笔记
-  video.mp4          # 仅 keep_video=true 时保留
+  task.json          # request, status, progress, errors, artifact list
+  source.json        # Douyin video info and raw metadata
+  transcript.json    # full text, engine, segment timeline
+  transcript.srt     # standard SRT subtitles
+  notes.md           # Markdown notes with source info
+  video.mp4          # kept only when keep_video=true
 ```
 
-各引擎的环境变量配置与听悟 OSS 流程说明见 [.env.example](.env.example) 和 [docs/DOUYIN_TINGWU_PIPELINE.md](docs/DOUYIN_TINGWU_PIPELINE.md)。
+Engine environment variables and the Tingwu OSS flow are documented in [.env.example](.env.example) and [docs/DOUYIN_TINGWU_PIPELINE.md](docs/DOUYIN_TINGWU_PIPELINE.md).
 
-## 小红书抓取
+## Xiaohongshu (XHS) crawling
 
-`src/flowpulse/modules/xhs/` 移植自 [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)（逐字移植，仅重写 import 前缀），挂载到同一个 FastAPI 应用，路由前缀 `/api/v1/xhs`。
+`src/flowpulse/modules/xhs/` is ported verbatim from [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS) (only import prefixes rewritten), mounted on the same FastAPI app under the `/api/v1/xhs` prefix.
 
-- **前置**：Node.js（签名运行时）+ `cd src\xhs_spider && npm.cmd install`（crypto-js）；Python 依赖 `pip install -e ".[xhs]"`；可选代理 `XHS_PROXY`。
-- **登录**：Cookie 直登 / 扫码 / 手机验证码，登录态留存于 `data/xhs/cookies.json`。扫码与 Cookie 登录均已真实账号实测通过；Cookie 直登需完整 Cookie（必须同时含 `web_session` 和 `a1`，可用仓库 `extension/` 下的配套 Chrome 扩展一键获取）。
-- **数据接口**：笔记详情 / 评论 / 无水印媒体、关键词与用户搜索、推荐流、用户资料与笔记、消息通知、创作者中心、蒲公英 / 千帆，均直接返回 JSON。
-- **异步任务**：`POST /api/v1/xhs/jobs` 创建抓取+下载任务（媒体、Excel 导出），产物在 `data/xhs/jobs/<job_id>/`。
+- **Prerequisites**: Node.js (signing runtime) + `cd src/flowpulse/modules/xhs && npm install` (crypto-js); Python extras `pip install -e ".[xhs]"`; optional proxy via `XHS_PROXY`.
+- **Login**: cookie paste / QR code / phone verification; sessions persist in `data/xhs/cookies.json`. QR and cookie logins are verified against a real account. Cookie login needs the complete cookie (both `web_session` and `a1`; the bundled Chrome extension under `extension/` grabs it in one click).
+- **Data endpoints**: note details / comments / watermark-free media, keyword and user search, homefeed, user profiles and notes, notifications, creator center, Pugongying / Qianfan — all return JSON directly.
+- **Async jobs**: `POST /api/v1/xhs/jobs` creates a crawl + download job (media, Excel export); artifacts land in `data/xhs/jobs/<job_id>/`.
 
-上游同步与维护说明：平台算法变化时，从上游拉新版覆盖 `apis/`、`xhs_utils/`、`spider/` 三个目录并重写 import 前缀，`integration/` 集成层一般无需改动。
+Upstream sync notes: when the platform's algorithms change, pull the new version over `apis/`, `xhs_utils/` and `spider/`, rewrite the import prefixes, and leave `integration/` alone.
 
-> ⚠️ 上游 [Spider_XHS](https://github.com/cv-cat/Spider_XHS) 仓库未附带开源许可证，其 README 声明「仅供学习交流使用，禁止任何商业化行为」；本模块请仅用于个人学习与研究，商用前请自行评估合规风险。
+> ⚠️ The upstream [Spider_XHS](https://github.com/cv-cat/Spider_XHS) repository carries no open-source license; its README states "for personal study and exchange only, commercial use prohibited". Keep this module to personal learning and research, and assess compliance risks yourself before any commercial use.
 
-## 工作台前端
+## Workbench frontend
 
-`frontend/` 为 Vue 3 + Vite + TypeScript + Element Plus + Pinia + Tailwind CSS 的管理后台骨架，页面模块按 [plan.md](plan.md)「产品功能需求清单」划分：
+`frontend/` is a Vue 3 + Vite + TypeScript + Element Plus + Pinia + Tailwind CSS admin skeleton; pages follow the feature list in [plan.md](plan.md):
 
-| 路由 | 模块 | 状态 |
+| Route | Module | Status |
 | --- | --- | --- |
-| `/weread` | 公众号订阅 | ✅ 已对接后端（Cookie、订阅、文章、RSS、定时同步） |
-| `/dashboard`、`/accounts`、`/messages`、`/topics`、`/materials`、`/content/create`、`/publish`、`/reports/*`、`/settings` | 驾驶舱、账号、消息、选题、素材、创作、发布、数据、设置 | 🚧 骨架占位 |
+| `/weread` | Official Account subscriptions | ✅ Wired to the backend (cookie, subscriptions, articles, RSS, scheduled sync) |
+| `/xhs` | Xiaohongshu workbench | ✅ Wired to the backend |
+| `/transcribe` | Douyin transcription | ✅ Wired to the backend |
+| `/dashboard`, `/accounts`, `/messages`, `/topics`, `/materials`, `/content/create`, `/publish`, `/reports/*`, `/settings` | Dashboard, accounts, inbox, topics, assets, creation, publishing, reports, settings | 🚧 Placeholder |
 
-详见 [frontend/README.md](frontend/README.md)。
+See [frontend/README.md](frontend/README.md) for details.
 
-## 项目结构
+## Project structure
 
 ```text
 src/flowpulse/
-  main.py            FastAPI 应用装配（create_app）
-  runtime.py         服务装配工厂（Web 与 console 共用的接线层）
-  config.py          全局 Settings（.env 驱动）
-  static_site.py     前端静态资源托管（Docker 单容器）
-  console/           一次性任务 CLI（配合外部 cron / 任务计划定时执行）
-  core/              跨模块共享基建：storage（原子写）/ notify（Webhook 通知）/ crypto（凭证加密）
-  db/                数据库层：SQLAlchemy 模型与引擎（PostgreSQL 模式）
-  modules/           业务模块域（对应 plan.md 模块划分，新模块加在这里）
-    weread/          公众号订阅 RSS（微信读书通道）：client / service / storage / rss / scheduler / qrlogin / refresh / api
-    douyin/          抖音转写：resolvers / services / transcribers / renderers / storage / api
-    xhs/             小红书抓取：apis / xhs_utils / spider（上游移植）+ integration（本项目集成层）
-frontend/            Vue3 工作台前端
-website/             官网落地页（GitHub Pages）
-extension/           Chrome 扩展（小红书 Cookie 一键获取）
-docs/                技术文档
-migrations/          Alembic 数据库迁移脚本
-scripts/             辅助脚本（微信读书通道 probe、PG 数据迁移等）
-data/                运行时数据（任务、订阅、登录态，不入库）
+  main.py            FastAPI app assembly (create_app)
+  runtime.py         service wiring factory shared by web app and console
+  config.py          global Settings (.env driven)
+  static_site.py     frontend static hosting (single Docker container)
+  console/           one-shot task CLI (for external cron / Task Scheduler)
+  core/              shared infrastructure: storage (atomic writes) / notify (webhooks) / crypto (credential encryption)
+  db/                database layer: SQLAlchemy models and engine (PostgreSQL mode)
+  modules/           business module domains (per plan.md; new modules go here)
+    weread/          Official Account RSS (WeRead channel): client / service / storage / rss / scheduler / qrlogin / refresh / api
+    douyin/          Douyin transcription: resolvers / services / transcribers / renderers / storage / api
+    xhs/             Xiaohongshu crawling: apis / xhs_utils / spider (upstream port) + integration (project layer)
+frontend/            Vue 3 workbench frontend
+website/             landing page (GitHub Pages)
+extension/           Chrome extension (one-click XHS cookie capture)
+docs/                technical docs
+migrations/          Alembic database migrations
+scripts/             helper scripts (WeRead probe, PG data migration, etc.)
+data/                runtime data (tasks, subscriptions, login state; not committed)
 ```
 
-## 开发与测试
+## Development & testing
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
@@ -270,27 +270,27 @@ data/                运行时数据（任务、订阅、登录态，不入库�
 .\.venv\Scripts\ruff.exe check .
 ```
 
-## 路线图
+## Roadmap
 
-- [x] 微信读书公众号订阅 RSS（订阅 / 增量同步 / RSS / 定时调度 / Webhook 告警）
-- [ ] 工作台前端逐页落地（驾驶舱 → 消息中心 → 选题 / 素材库）
-- [ ] 多平台账号接入与统一消息聚合
-- [ ] 内容编辑与批量分发
-- [ ] 内容数据监控与投流 ROI 分析
-- [x] Docker 私有化部署（Dockerfile + docker-compose，单容器前后端合一）
+- [x] WeRead Official Account RSS (subscribe / incremental sync / RSS / scheduling / webhook alerts)
+- [ ] Land the workbench frontend page by page (dashboard → inbox → topics / asset library)
+- [ ] Multi-platform account integration and unified inbox
+- [ ] Content editing and batch publishing
+- [ ] Content analytics and ad-spend ROI
+- [x] Docker self-hosted deployment (Dockerfile + docker-compose, single container)
 
-完整功能需求清单见 [plan.md](plan.md)。
+Full feature list in [plan.md](plan.md).
 
-## 当前限制
+## Current limitations
 
-- 后台任务与调度器运行在当前 FastAPI 进程中，进程重启不恢复未完成任务（调度状态已持久化，重启后继续）。
-- 微信读书通道为非官方接口，存在频率限制与 Cookie 过期风险；高频大量拉取可能触发风控。
-- XHS 签名依赖外部 Node 与小红书线上算法，平台更新或风控变化可能导致失效；XHS 登录中间态会话仅存于内存。
-- 暂未提供身份认证、限流、任务取消和 SSE 进度推送。
-- 抖音分享页结构或风控变化可能导致直接解析失效；发现内嵌字幕时会跳过下载和听悟转写。
+- Background tasks and schedulers run inside the FastAPI process; tasks in flight do not resume after a restart (scheduler state is persisted, so overdue runs catch up).
+- The WeRead channel is an unofficial API with rate limits and cookie-expiry risk; high-frequency bulk pulling may trigger risk control.
+- XHS signing depends on external Node.js and Xiaohongshu's live algorithms — platform updates or risk-control changes can break it; XHS intermediate login sessions live in memory only.
+- No rate limiting, task cancellation or SSE progress streaming yet.
+- Douyin share-page layout or risk-control changes can break direct resolution; embedded subtitles skip download and Tingwu transcription.
 
-生产部署前建议增加 API 鉴权、持久化任务队列、并发限制、结构化日志。
+For production deployments, consider API auth hardening, a persistent task queue, concurrency limits and structured logging.
 
 ## License
 
-[MIT](LICENSE) © 2026 izetaiota。其中 `src/flowpulse/modules/xhs/` 移植自 [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS)，`src/flowpulse/modules/weread/` 采集思路参考 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT，模块内已保留其版权声明）。
+[MIT](LICENSE) © 2026 izetaiota. `src/flowpulse/modules/xhs/` is ported from [cv-cat/Spider_XHS](https://github.com/cv-cat/Spider_XHS); the WeRead channel in `src/flowpulse/modules/weread/` follows [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss) (MIT, its copyright notice retained in the module).
