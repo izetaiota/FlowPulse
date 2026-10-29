@@ -101,6 +101,33 @@ docker compose up -d --build
   `/health/*` 探活接口不锁；Token 由服务端 HMAC 签名（密钥自动生成于 `data/.auth_secret`）；
 - 退出：右上角用户菜单「退出登录」。
 
+## 定时任务（console CLI）
+
+`src/flowpulse/console/` 提供一次性任务 CLI，跑完即退出，配合外部调度（crontab / Windows 任务计划 / `docker compose run`）定时执行；与应用内置的常驻调度循环（微信读书同步、Cookie 续期、小红书凭证校验）互补，适合「关掉内置调度、统一由系统 cron 驱动」或临时手动补跑的场景。
+
+```bash
+python -m flowpulse.console list                  # 列出全部任务
+python -m flowpulse.console weread-sync           # 全量订阅增量同步一次
+python -m flowpulse.console weread-status         # 凭证/订阅健康检查（异常退出码非 0）
+python -m flowpulse.console weread-refresh-cookie # 无头 Cookie 续期一次（需本机浏览器 profile）
+python -m flowpulse.console xhs-check             # 小红书登录态校验一次
+```
+
+pip 安装后也可用 `flowpulse-console <task>` 命令。任务输出 JSON 摘要（含 `ok` 字段），失败时进程退出码非 0，便于 cron 与监控系统判定。
+
+定时执行示例：
+
+```bash
+# Linux crontab：每 2 小时同步一次公众号
+0 */2 * * * cd /opt/flowpulse && python -m flowpulse.console weread-sync >> data/cron.log 2>&1
+
+# Windows 任务计划（每天 09:05 检查凭证）
+schtasks /Create /TN FlowPulseStatus /SC DAILY /ST 09:05 /TR "python -m flowpulse.console weread-status"
+
+# Docker（复用镜像与挂载的 data 卷）
+docker compose run --rm flowpulse python -m flowpulse.console weread-sync
+```
+
 ## 公众号订阅 RSS（微信读书通道）
 
 `src/flowpulse/modules/weread/` 基于 [rachelos/we-mp-rss](https://github.com/rachelos/we-mp-rss)（MIT）的微信读书通道思路实现，是把公众号内容收进 FlowPulse 的第一步：**订阅公众号 → 定时增量同步 → 站内浏览 / RSS 输出**。
@@ -216,8 +243,10 @@ data/tasks/<task-id>/
 ```text
 src/flowpulse/
   main.py            FastAPI 应用装配（create_app）
+  runtime.py         服务装配工厂（Web 与 console 共用的接线层）
   config.py          全局 Settings（.env 驱动）
   static_site.py     前端静态资源托管（Docker 单容器）
+  console/           一次性任务 CLI（配合外部 cron / 任务计划定时执行）
   core/              跨模块共享基建：storage（原子写）/ notify（Webhook 通知）/ crypto（凭证加密）
   db/                数据库层：SQLAlchemy 模型与引擎（PostgreSQL 模式）
   modules/           业务模块域（对应 plan.md 模块划分，新模块加在这里）

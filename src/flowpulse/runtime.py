@@ -24,12 +24,12 @@ from flowpulse.modules.douyin.transcribers.router import TranscriberRouter
 from flowpulse.modules.douyin.transcribers.sensevoice import SenseVoiceTranscriber
 from flowpulse.modules.douyin.transcribers.tingwu import TingwuTranscriber
 from flowpulse.modules.douyin.transcribers.whisper import WhisperTranscriber
+from flowpulse.modules.menu import MenuRepository
 from flowpulse.modules.weread.qrlogin import WereadQrLoginManager
 from flowpulse.modules.weread.refresh import WereadCookieRefresher
 from flowpulse.modules.weread.scheduler import WereadScheduler
 from flowpulse.modules.weread.service import WereadService
 from flowpulse.modules.weread.storage import WereadRepository
-from flowpulse.modules.menu import MenuRepository
 from flowpulse.modules.xhs.integration.credential_check import XhsCredentialChecker
 from flowpulse.modules.xhs.integration.service import XhsService
 

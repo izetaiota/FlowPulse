@@ -6,6 +6,8 @@ from flowpulse.config import get_settings
 from flowpulse.core.auth import init_auth, require_auth
 from flowpulse.core.auth import router as auth_router
 from flowpulse.modules.douyin.api.routes import get_pipeline, get_repository, router
+from flowpulse.modules.menu import get_menu_repository
+from flowpulse.modules.menu import router as menu_router
 from flowpulse.modules.weread.api import (
     get_weread_cookie_refresher,
     get_weread_qr_login,
@@ -19,8 +21,6 @@ from flowpulse.modules.xhs.integration.routes import (
     get_xhs_credential_checker,
     get_xhs_service,
 )
-from flowpulse.modules.menu import get_menu_repository
-from flowpulse.modules.menu import router as menu_router
 from flowpulse.modules.xhs.integration.routes import router as xhs_router
 from flowpulse.runtime import build_runtime
 from flowpulse.static_site import mount_static_site
