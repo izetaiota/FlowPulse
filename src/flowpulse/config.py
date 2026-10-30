@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     xhs_credential_check_minutes: int = 360
     # 小红书 Cookie 静态加密密钥（Fernet）；空 = 自动生成 data/xhs/.credential_key
     xhs_credential_key: str = ""
+    # --- XHS 作品监控（P1）---
+    # 监控调度总开关（false = 不启动后台扫描，API 仍可用手动触发）
+    xhs_monitor_enabled: bool = True
+    # 调度轮询间隔（秒）
+    xhs_monitor_tick_seconds: int = 60
+    # 新建监控目标的默认扫描周期（分钟），目标级可覆盖
+    xhs_monitor_default_interval_minutes: int = 30
 
     # --- 浏览器会话层（P0.5 骨架，P3 抖音接入时启用）---
     # 浏览器登录总开关（当前仅作预留；patchright 为可选依赖 browser 组）

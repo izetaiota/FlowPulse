@@ -31,6 +31,11 @@ from flowpulse.modules.xhs.integration.routes import (
     get_xhs_service,
 )
 from flowpulse.modules.xhs.integration.routes import router as xhs_router
+from flowpulse.modules.xhs.monitoring import (
+    get_monitor_scheduler,
+    get_monitor_service,
+)
+from flowpulse.modules.xhs.monitoring import router as xhs_monitor_router
 from flowpulse.runtime import build_runtime
 from flowpulse.static_site import mount_static_site
 
@@ -44,7 +49,9 @@ def create_app() -> FastAPI:
         runtime.weread_scheduler.start()
         runtime.weread_cookie_refresher.start()
         runtime.xhs_credential_checker.start()
+        runtime.xhs_monitor_scheduler.start()
         yield
+        await runtime.xhs_monitor_scheduler.stop()
         await runtime.weread_scheduler.stop()
         await runtime.weread_cookie_refresher.stop()
         await runtime.xhs_credential_checker.stop()
@@ -62,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_router, dependencies=[Depends(require_auth)])
+    app.include_router(xhs_monitor_router, dependencies=[Depends(require_auth)])
     app.include_router(weread_router, dependencies=[Depends(require_auth)])
     app.include_router(menu_router, dependencies=[Depends(require_auth)])
     app.include_router(notify_router, dependencies=[Depends(require_auth)])
@@ -80,6 +88,8 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_weread_notifier] = lambda: runtime.weread_notifier
     app.dependency_overrides[get_account_service] = lambda: runtime.account_service
     app.dependency_overrides[get_queue_service] = lambda: runtime.queue_service
+    app.dependency_overrides[get_monitor_service] = lambda: runtime.xhs_monitor_service
+    app.dependency_overrides[get_monitor_scheduler] = lambda: runtime.xhs_monitor_scheduler
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service

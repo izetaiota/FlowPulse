@@ -60,6 +60,12 @@ async def xhs_check(rt: Runtime) -> dict:
     return {"ok": ok, "platforms": results}
 
 
+async def xhs_monitor_scan(rt: Runtime) -> dict:
+    """小红书作品监控：扫描全部到期目标一次（无到期目标为空跑）。"""
+    result = await rt.xhs_monitor_scheduler.run_once()
+    return {**result, "ok": result.get("errors", 0) == 0}
+
+
 TASKS: dict[str, TaskSpec] = {
     spec.name: spec
     for spec in (
@@ -69,6 +75,7 @@ TASKS: dict[str, TaskSpec] = {
             "weread-refresh-cookie", "微信读书：无头 Cookie 续期一次（需本机浏览器 profile）", weread_refresh_cookie
         ),
         TaskSpec("xhs-check", "小红书：登录态校验一次", xhs_check),
+        TaskSpec("xhs-monitor-scan", "小红书：作品监控到期目标扫描一次", xhs_monitor_scan),
     )
 }
 

@@ -36,6 +36,11 @@ from flowpulse.modules.weread.service import WereadService
 from flowpulse.modules.weread.storage import WereadRepository
 from flowpulse.modules.xhs.integration.credential_check import XhsCredentialChecker
 from flowpulse.modules.xhs.integration.service import XhsService
+from flowpulse.modules.xhs.monitoring import (
+    XhsMonitorRepository,
+    XhsMonitorScheduler,
+    XhsMonitorService,
+)
 
 
 @dataclass
@@ -60,6 +65,8 @@ class Runtime:
     notify_store: NotifyStore
     account_service: AccountService
     queue_service: QueueService
+    xhs_monitor_service: XhsMonitorService
+    xhs_monitor_scheduler: XhsMonitorScheduler
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -228,6 +235,18 @@ def build_runtime(settings: Settings) -> Runtime:
     # 统一任务队列视图（P0）：聚合抖音转写与小红书抓取任务
     queue_service = QueueService(repository, pipeline, xhs_service.jobs)
 
+    # 小红书作品监控（P1）：目标存储 + 扫描服务 + 到期调度
+    xhs_monitor_repository = XhsMonitorRepository(db_sessionmaker, settings.data_dir)
+    xhs_monitor_service = XhsMonitorService(
+        xhs_monitor_repository, xhs_service, notifier=weread_notifier
+    )
+    xhs_monitor_scheduler = XhsMonitorScheduler(
+        xhs_monitor_service,
+        xhs_monitor_repository,
+        tick_seconds=settings.xhs_monitor_tick_seconds,
+        enabled=settings.xhs_monitor_enabled,
+    )
+
     return Runtime(
         settings=settings,
         client=client,
@@ -246,5 +265,7 @@ def build_runtime(settings: Settings) -> Runtime:
         notify_store=notify_store,
         account_service=account_service,
         queue_service=queue_service,
+        xhs_monitor_service=xhs_monitor_service,
+        xhs_monitor_scheduler=xhs_monitor_scheduler,
         db_engine=db_engine,
     )

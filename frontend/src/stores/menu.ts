@@ -10,6 +10,7 @@ export const FALLBACK_MENUS: MenuItemData[] = [
   { id: "materials", title: "素材库", path: "/materials", icon: "FolderOpened", parent: "", visible: true },
   { id: "weread", title: "公众号订阅", path: "/weread", icon: "Reading", parent: "", visible: true },
   { id: "xhs", title: "小红书工作台", path: "/xhs", icon: "PictureFilled", parent: "", visible: true },
+  { id: "xhs-monitor", title: "作品监控", path: "/xhs/monitor", icon: "Monitor", parent: "", visible: true },
   { id: "transcribe", title: "转写任务", path: "/transcribe", icon: "VideoPlay", parent: "", visible: true },
   { id: "content-create", title: "内容创作", path: "/content/create", icon: "EditPen", parent: "", visible: true },
   { id: "publish", title: "发布任务", path: "/publish", icon: "Promotion", parent: "", visible: true },

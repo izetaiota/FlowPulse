@@ -11,6 +11,8 @@
   fp_notify_channels       通知渠道（页面管理的 webhook 地址）
   fp_notify_logs           通知发送记录（环形保留最近若干条）
   fp_accounts              统一账号中心（builtin 模块同步 + managed 手工，凭证 Fernet 加密）
+  fp_xhs_monitors          小红书作品监控目标（创作者主页 / 关键词）
+  fp_xhs_contents          小红书监控作品记录（note_id 全局去重）
 """
 
 from __future__ import annotations
@@ -200,6 +202,58 @@ class AccountRow(Base):
     write_paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     risk_level: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class XhsMonitorRow(Base):
+    """小红书作品监控目标：kind=creator 按创作者主页增量拉取；kind=keyword 按关键词搜索增量。"""
+
+    __tablename__ = "fp_xhs_monitors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(16), default="keyword")  # creator | keyword
+    target: Mapped[str] = mapped_column(Text, default="")  # creator: 用户主页 URL；keyword: 关键词
+    name: Mapped[str] = mapped_column(String(255), default="")
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    # 标题过滤（逗号分隔）；include 命中才收录，exclude 命中则跳过
+    include_keywords: Mapped[str] = mapped_column(Text, default="")
+    exclude_keywords: Mapped[str] = mapped_column(Text, default="")
+    # 首扫基线条数（只入库不推送）
+    backfill_count: Mapped[int] = mapped_column(Integer, default=10)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active | paused
+    last_scan_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_scan_status: Mapped[str] = mapped_column(String(16), default="never")  # never|ok|error
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class XhsContentRow(Base):
+    """小红书监控作品记录：note_id 全局唯一（跨监控去重），first_seen_at 即发现时间。"""
+
+    __tablename__ = "fp_xhs_contents"
+    __table_args__ = (
+        Index("ix_fp_xhs_contents_monitor_seen", "monitor_id", "first_seen_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    monitor_id: Mapped[int | None] = mapped_column(Integer)
+    note_id: Mapped[str] = mapped_column(String(64))
+    title: Mapped[str] = mapped_column(Text, default="")
+    author: Mapped[str] = mapped_column(String(255), default="")
+    author_id: Mapped[str] = mapped_column(String(64), default="")
+    url: Mapped[str] = mapped_column(Text, default="")
+    cover: Mapped[str] = mapped_column(Text, default="")
+    note_type: Mapped[str] = mapped_column(String(16), default="")  # normal | video
+    liked_count: Mapped[str] = mapped_column(String(32), default="")  # 平台原始展示值（如 1.2万）
+    xsec_token: Mapped[str] = mapped_column(Text, default="")
+    extra: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+    notified: Mapped[bool] = mapped_column(Boolean, default=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )

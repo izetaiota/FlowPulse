@@ -56,6 +56,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "小红书工作台", icon: "PictureFilled" },
       },
       {
+        path: "xhs/monitor",
+        name: "xhs-monitor",
+        component: () => import("@/views/xhs/monitor.vue"),
+        meta: { title: "作品监控", icon: "Monitor" },
+      },
+      {
         path: "transcribe",
         name: "transcribe",
         component: () => import("@/views/transcribe/index.vue"),
