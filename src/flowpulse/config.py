@@ -68,6 +68,12 @@ class Settings(BaseSettings):
     # 小红书 Cookie 静态加密密钥（Fernet）；空 = 自动生成 data/xhs/.credential_key
     xhs_credential_key: str = ""
 
+    # --- 浏览器会话层（P0.5 骨架，P3 抖音接入时启用）---
+    # 浏览器登录总开关（当前仅作预留；patchright 为可选依赖 browser 组）
+    browser_enabled: bool = False
+    # 常驻浏览器上下文上限（超量按最久未用回收）
+    browser_max_live_contexts: int = 4
+
 
 @lru_cache
 def get_settings() -> Settings:

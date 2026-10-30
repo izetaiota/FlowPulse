@@ -86,6 +86,10 @@ class XhsService:
         elif platform == "creator":
             self._creator_api = None
 
+    def invalidate(self, platform: str) -> None:
+        """丢弃某平台的缓存 API 会话（凭证变更/删除后调用，公开给账号中心等外部模块）。"""
+        self._invalidate(platform)
+
     def set_cookie(self, platform: str, cookie: str) -> None:
         self.cookies.set(platform, cookie)
         self._invalidate(platform)

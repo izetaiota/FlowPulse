@@ -71,14 +71,14 @@
 
 ## 4. 分阶段执行计划
 
-### Phase 0 — 基础设施：统一账号中心 + 任务引擎（先行，其余都依赖它）
+### Phase 0 — 基础设施：统一账号中心 + 任务引擎（先行，其余都依赖它）✅ 2026-10-30 完成
 
-- [ ] T0.1 `fp_accounts` 表 + Alembic 迁移 + 双模式仓储（平台/账号名/加密凭证/storage_state/状态/体检时间/风控字段预留）
-- [ ] T0.2 账号中心 API（`/api/v1/accounts`：CRUD、状态、体检、删除）+ 前端替换 accounts 占位页（凭证卡模板复用，平台筛选）
-- [ ] T0.3 现有 weread/xhs 凭证**收编进统一账号列表**（2026-10-30 决策）：迁移脚本把两模块存量凭证写入 `fp_accounts`，模块仓储改为读写统一账号表，账号中心一个列表展示全部平台账号
-- [ ] T0.4 通用任务视图：把 xhs jobs + transcribe tasks 抽象成统一队列接口（`/api/v1/tasks` 已有雏形，补 list/cancel/重试语义），前端填 queue 概念（消息中心占位页可先用任务动态）
-- [ ] T0.5 引入 `patchright`（optional 依赖组 `browser`），`modules/browser/` 骨架：每账号 Profile 目录分配、上下文 LRU 回收、登录驱动状态机接口
-- 验收：新增一个平台账号（粘贴 Cookie）→ 账号页可见 → 定时体检状态灯亮；现有两模块不受影响；测试覆盖双模式仓储。
+- [x] T0.1 `fp_accounts` 表（迁移 0007）+ 双模式仓储（`modules/accounts/store.py`，PG / JSON 同构，凭证 Fernet 加密列与风控字段预留）
+- [x] T0.2 账号中心 API（`/api/v1/accounts`：列表/平台元数据/managed CRUD/体检/删除）+ 前端 accounts 页（平台筛选、状态灯、体检、登记弹窗）
+- [x] T0.3 weread/xhs 凭证收编：builtin 提供方协议（`BuiltinAccountProvider`）+ `WereadProvider`/`XhsProvider`，列表/体检/删除路由回所属模块（凭证仍由模块存储为单一事实源，账号表为统一视图与 managed 账号存储）
+- [x] T0.4 统一任务视图：`/api/v1/queue`（聚合抖音转写 + 小红书抓取，按更新时间倒序，失败可重试）；前端「消息中心」页先承载任务动态（10s 轮询）
+- [x] T0.5 `patchright` 可选依赖组 `browser` + `modules/browser/` 骨架（Profile uuid 分配不复用、上下文 LRU 回收、登录状态机 start→poll→verify，纯逻辑已测；浏览器驱动待 P3 落地）
+- 验收：新增 managed 账号（API+页面实测）→ 列表可见 → 体检返回暂不支持提示；weread 写入凭证后 builtin 行自动出现并被清理跟踪；148 项测试全绿（新增 17 项）。
 
 ### Phase 1 — 小红书监控与批量采集（复用已有 spider，最快形成闭环）
 

@@ -5,6 +5,8 @@ from fastapi import Depends, FastAPI
 from flowpulse.config import get_settings
 from flowpulse.core.auth import init_auth, require_auth
 from flowpulse.core.auth import router as auth_router
+from flowpulse.modules.accounts import get_account_service
+from flowpulse.modules.accounts import router as accounts_router
 from flowpulse.modules.douyin.api.routes import get_pipeline, get_repository, router
 from flowpulse.modules.menu import get_menu_repository
 from flowpulse.modules.menu import router as menu_router
@@ -13,6 +15,8 @@ from flowpulse.modules.notify import (
     get_weread_notifier,
 )
 from flowpulse.modules.notify import router as notify_router
+from flowpulse.modules.queue import get_queue_service
+from flowpulse.modules.queue import router as queue_router
 from flowpulse.modules.weread.api import (
     get_weread_cookie_refresher,
     get_weread_qr_login,
@@ -61,6 +65,8 @@ def create_app() -> FastAPI:
     app.include_router(weread_router, dependencies=[Depends(require_auth)])
     app.include_router(menu_router, dependencies=[Depends(require_auth)])
     app.include_router(notify_router, dependencies=[Depends(require_auth)])
+    app.include_router(accounts_router, dependencies=[Depends(require_auth)])
+    app.include_router(queue_router, dependencies=[Depends(require_auth)])
     app.dependency_overrides[get_pipeline] = lambda: runtime.pipeline
     app.dependency_overrides[get_repository] = lambda: runtime.task_repository
     app.dependency_overrides[get_xhs_service] = lambda: runtime.xhs_service
@@ -72,6 +78,8 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_menu_repository] = lambda: runtime.menu_repository
     app.dependency_overrides[get_notify_store] = lambda: runtime.notify_store
     app.dependency_overrides[get_weread_notifier] = lambda: runtime.weread_notifier
+    app.dependency_overrides[get_account_service] = lambda: runtime.account_service
+    app.dependency_overrides[get_queue_service] = lambda: runtime.queue_service
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service

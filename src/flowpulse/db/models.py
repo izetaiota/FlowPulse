@@ -10,6 +10,7 @@
   fp_users                 Web 登录账号（单行 id=1；密码 PBKDF2 哈希，永不存明文）
   fp_notify_channels       通知渠道（页面管理的 webhook 地址）
   fp_notify_logs           通知发送记录（环形保留最近若干条）
+  fp_accounts              统一账号中心（builtin 模块同步 + managed 手工，凭证 Fernet 加密）
 """
 
 from __future__ import annotations
@@ -167,3 +168,38 @@ class NotifyLogRow(Base):
     ok: Mapped[bool] = mapped_column(Boolean, default=False)
     detail: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class AccountRow(Base):
+    """统一账号中心（P0）：builtin 行由各模块提供方同步，managed 行为手工创建。
+
+    platform+account_key 唯一（weread:default / xhs:pc / xhs:creator / 未来 sec_uid）。
+    builtin 行的凭证仍由所属模块存储（单一事实源），本表只登记元数据与体检状态；
+    managed 行的凭证加密后存 credential_encrypted（Fernet），storage_state 预留给
+    浏览器登录态（P0.5 浏览器层落地后启用）。
+    """
+
+    __tablename__ = "fp_accounts"
+    __table_args__ = (
+        Index("uq_fp_accounts_platform_key", "platform", "account_key", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    platform: Mapped[str] = mapped_column(String(32), default="")
+    account_key: Mapped[str] = mapped_column(String(64), default="")
+    kind: Mapped[str] = mapped_column(String(16), default="managed")  # builtin | managed
+    name: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(32), default="unknown")  # active|expired|unknown|disabled
+    last_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_check_ok: Mapped[bool | None] = mapped_column(Boolean)
+    last_check_message: Mapped[str] = mapped_column(Text, default="")
+    extra: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+    credential_encrypted: Mapped[str | None] = mapped_column(Text)
+    storage_state: Mapped[dict | None] = mapped_column(JSONVariant)
+    # 写操作风控预留（P4 风控闸启用）
+    write_paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    risk_level: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )

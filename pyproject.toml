@@ -43,6 +43,9 @@ xhs = [
 weread = [
   "playwright>=1.40.0",
 ]
+browser = [
+  "patchright>=1.61.0",
+]
 postgres = [
   "sqlalchemy>=2.0.30",
   "psycopg[binary]>=3.2",

@@ -12,7 +12,9 @@ import httpx
 
 from flowpulse.config import Settings
 from flowpulse.core.auth import AuthUserStore
+from flowpulse.core.crypto import CredentialCipher
 from flowpulse.core.notify import WebhookNotifier
+from flowpulse.modules.accounts import AccountRepository, AccountService, WereadProvider, XhsProvider
 from flowpulse.modules.douyin.resolvers.api import ApiResolver
 from flowpulse.modules.douyin.resolvers.router import ResolverRouter
 from flowpulse.modules.douyin.resolvers.share_page import SharePageResolver
@@ -26,6 +28,7 @@ from flowpulse.modules.douyin.transcribers.tingwu import TingwuTranscriber
 from flowpulse.modules.douyin.transcribers.whisper import WhisperTranscriber
 from flowpulse.modules.menu import MenuRepository
 from flowpulse.modules.notify import NotifyStore
+from flowpulse.modules.queue import QueueService
 from flowpulse.modules.weread.qrlogin import WereadQrLoginManager
 from flowpulse.modules.weread.refresh import WereadCookieRefresher
 from flowpulse.modules.weread.scheduler import WereadScheduler
@@ -55,6 +58,8 @@ class Runtime:
     menu_repository: MenuRepository
     auth_store: AuthUserStore
     notify_store: NotifyStore
+    account_service: AccountService
+    queue_service: QueueService
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -205,6 +210,24 @@ def build_runtime(settings: Settings) -> Runtime:
     if settings.weread_cookie_refresh_hours > 0:
         weread_service.attach_self_heal(weread_cookie_refresher.run_once)
 
+    # 统一账号中心（P0）：builtin 提供方聚合 weread/xhs，managed 账号凭证独立加密
+    account_repository = AccountRepository(
+        db_sessionmaker,  # DATABASE_URL 模式走 fp_accounts 表，否则 data/accounts/accounts.json
+        settings.data_dir / "accounts" / "accounts.json",
+    )
+    account_service = AccountService(
+        account_repository,
+        providers=[
+            WereadProvider(weread_repository, weread_service, weread_qr_login),
+            XhsProvider(xhs_service, xhs_credential_checker),
+        ],
+        cipher=CredentialCipher(
+            key_file=settings.data_dir / "accounts" / ".credential_key"
+        ),
+    )
+    # 统一任务队列视图（P0）：聚合抖音转写与小红书抓取任务
+    queue_service = QueueService(repository, pipeline, xhs_service.jobs)
+
     return Runtime(
         settings=settings,
         client=client,
@@ -221,5 +244,7 @@ def build_runtime(settings: Settings) -> Runtime:
         menu_repository=menu_repository,
         auth_store=auth_store,
         notify_store=notify_store,
+        account_service=account_service,
+        queue_service=queue_service,
         db_engine=db_engine,
     )
