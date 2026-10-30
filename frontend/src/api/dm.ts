@@ -35,7 +35,9 @@ export interface DmDraft {
   last_text: string;
   rule_name: string;
   suggested_reply: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "sent" | "failed";
+  error: string;
+  sent_at: string | null;
   created_at: string;
 }
 
@@ -64,4 +66,6 @@ export const dmApi = {
     }>,
   reviewDraft: (id: number, decision: "approved" | "rejected") =>
     client.post(`/v1/xhs/dm/drafts/${id}/review`, null, { params: { decision } }) as unknown as Promise<DmDraft>,
+  sendDraft: (id: number) =>
+    client.post(`/v1/xhs/dm/drafts/${id}/send`) as unknown as Promise<{ ok: boolean; message: string }>,
 };

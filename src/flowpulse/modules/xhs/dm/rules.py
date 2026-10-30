@@ -11,12 +11,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from flowpulse.core.storage import atomic_write_json, read_json
 from flowpulse.db.models import XhsDmDraftRow, XhsDmRuleRow
 
-_DATETIME_FIELDS = ("created_at", "updated_at")
+_DATETIME_FIELDS = ("created_at", "updated_at", "sent_at")
 
 RULE_FIELDS = ("id", "name", "keywords", "reply_template", "enabled", "created_at", "updated_at")
 DRAFT_FIELDS = (
     "id", "conv_id", "peer_uid", "peer_nickname", "last_text", "rule_id",
-    "rule_name", "suggested_reply", "status", "created_at", "updated_at",
+    "rule_name", "suggested_reply", "status", "error", "sent_at", "created_at", "updated_at",
 )
 
 
@@ -108,6 +108,8 @@ class DmRuleStore:
             "rule_name": fields.get("rule_name", ""),
             "suggested_reply": fields.get("suggested_reply", ""),
             "status": "pending",
+            "error": "",
+            "sent_at": None,
             "created_at": now,
             "updated_at": now,
         }
@@ -134,6 +136,20 @@ class DmRuleStore:
     def delete_draft(self, draft_id: int) -> bool:
         return self._delete(XhsDmDraftRow, self._drafts_path, "drafts", draft_id)
 
+    def mark_sent(self, draft_id: int, ok: bool, error: str = "") -> dict | None:
+        """记录发送结果：成功 → sent + sent_at；失败保持 approved 可重试（error 记录原因）。"""
+        from datetime import datetime, timezone as tz
+
+        updates = {"error": (error or "")[:500], "updated_at": _now_iso()}
+        if ok:
+            updates["status"] = "sent"
+            updates["sent_at"] = datetime.now(tz.utc).isoformat(timespec="seconds")
+        self._update(XhsDmDraftRow, self._drafts_path, "drafts", draft_id, updates)
+        for draft in self._load_drafts():
+            if draft["id"] == draft_id:
+                return draft
+        return None
+
     def _load_drafts(self) -> list[dict]:
         if self._sessionmaker is not None:
             with self._sessionmaker() as session:
@@ -148,6 +164,7 @@ class DmRuleStore:
                         "peer_nickname": r.peer_nickname, "last_text": r.last_text,
                         "rule_id": r.rule_id, "rule_name": r.rule_name,
                         "suggested_reply": r.suggested_reply, "status": r.status,
+                        "error": r.error, "sent_at": _to_iso(r.sent_at),
                         "created_at": _to_iso(r.created_at), "updated_at": _to_iso(r.updated_at),
                     }
                     for r in rows

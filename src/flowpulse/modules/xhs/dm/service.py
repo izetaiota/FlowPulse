@@ -28,10 +28,11 @@ def _xhs_storage_state(cookie: str) -> dict | None:
 
 
 class XhsDmService:
-    def __init__(self, xhs_service, profiles_root: Path, rule_store: DmRuleStore):
+    def __init__(self, xhs_service, profiles_root: Path, rule_store: DmRuleStore, risk_gate=None):
         self.xhs_service = xhs_service
         self.allocator = ProfileAllocator(profiles_root)
         self.rules = rule_store
+        self.risk_gate = risk_gate
 
     def _login_state(self) -> dict | None:
         try:
@@ -118,3 +119,39 @@ class XhsDmService:
                 created += 1
                 break
         return created
+
+    # ---- 发送（T4.2 收尾：审核通过的草稿经浏览器 exactly-once 发送，风控闸前置） ----
+
+    async def send_draft(self, draft_id: int, headless: bool = True) -> dict:
+        from flowpulse.modules.xhs.dm import sender
+
+        drafts = [d for d in self.rules.list_drafts() if d["id"] == draft_id]
+        if not drafts:
+            raise KeyError(f"草稿不存在：{draft_id}")
+        draft = drafts[0]
+        if draft["status"] not in ("approved", "failed"):
+            raise ValueError(f"当前状态（{draft['status']}）不可发送，请先审核通过")
+
+        if self.risk_gate is not None:
+            allowed, reason = self.risk_gate.preflight("xhs", "pc")
+            if not allowed:
+                return {"ok": False, "message": f"风控拦截：{reason}"}
+
+        context, page = await self._open_chat_page(headless=headless)
+        try:
+            # 直达会话路由（含编辑器）；失败则退回 /chat 列表页
+            peer_uid = draft.get("peer_uid") or ""
+            if peer_uid:
+                await page.goto(
+                    f"https://www.xiaohongshu.com/chat/{peer_uid}",
+                    wait_until="domcontentloaded", timeout=40000,
+                )
+                await page.wait_for_timeout(2000)
+            ok, message = await sender.send_dm_in_page(page, draft["suggested_reply"])
+        finally:
+            await context.close()
+
+        if self.risk_gate is not None:
+            (self.risk_gate.record_success if ok else self.risk_gate.record_failure)("xhs", "pc")
+        self.rules.mark_sent(draft_id, ok, "" if ok else message)
+        return {"ok": ok, "message": "已发送" if ok else message}

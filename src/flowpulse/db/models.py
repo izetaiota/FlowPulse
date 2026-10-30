@@ -20,6 +20,7 @@
   fp_xhs_dm_drafts         小红书私信建议回复草稿（人工审核）
   fp_ks_monitors           快手作品监控目标（创作者主页 / 关键词）
   fp_ks_contents           快手监控作品记录（photo_id 全局去重）
+  fp_xhs_dm_drafts         小红书私信建议回复草稿（人工审核 → 浏览器发送）
 """
 
 from __future__ import annotations
@@ -423,7 +424,9 @@ class XhsDmDraftRow(Base):
     rule_id: Mapped[int | None] = mapped_column(Integer)
     rule_name: Mapped[str] = mapped_column(String(100), default="")
     suggested_reply: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|approved|rejected
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|approved|rejected|sent|failed
+    error: Mapped[str] = mapped_column(Text, default="")
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now

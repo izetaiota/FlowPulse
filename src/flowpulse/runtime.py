@@ -324,10 +324,11 @@ def build_runtime(settings: Settings) -> Runtime:
         risk_gate=risk_gate,
     )
 
-    # 小红书私信（P4）：只读同步 + 回复规则/审核草稿
+    # 小红书私信（P4）：只读同步 + 回复规则/审核草稿 + 审核后浏览器发送（风控闸前置）
     xhs_dm_rule_store = DmRuleStore(db_sessionmaker, settings.data_dir)
     xhs_dm_service = XhsDmService(
-        xhs_service, settings.data_dir / "browser" / "profiles", xhs_dm_rule_store
+        xhs_service, settings.data_dir / "browser" / "profiles", xhs_dm_rule_store,
+        risk_gate=risk_gate,
     )
 
     # 报表中心（P5）：站内数据 Excel 导出

@@ -98,8 +98,28 @@ async function removeRule(rule: DmRule) {
 
 async function reviewDraft(draft: DmDraft, decision: "approved" | "rejected") {
   await dmApi.reviewDraft(draft.id, decision);
-  ElMessage.success(decision === "approved" ? "已通过（请到小红书手动发送）" : "已拒绝");
+  ElMessage.success(decision === "approved" ? "已通过，可点击「发送」自动回复" : "已拒绝");
   await loadDrafts();
+}
+
+const sendingId = ref(0);
+
+async function sendDraft(draft: DmDraft) {
+  sendingId.value = draft.id;
+  try {
+    const result = await dmApi.sendDraft(draft.id);
+    if (result.ok) {
+      ElMessage.success("已发送");
+    } else {
+      ElMessage.error(result.message || "发送失败");
+    }
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(detail || "发送失败");
+  } finally {
+    sendingId.value = 0;
+    await loadDrafts();
+  }
 }
 
 function dmTime(ts: number): string {
@@ -302,18 +322,36 @@ onUnmounted(() => {
             <template #header>
               <span class="font-bold">建议回复（人工审核）</span>
             </template>
-            <el-table :data="drafts.filter((d) => d.status === 'pending')" size="small">
+            <el-table :data="drafts.filter((d) => ['pending', 'approved', 'failed'].includes(d.status))" size="small">
               <el-table-column prop="peer_nickname" label="来自" min-width="90" />
               <el-table-column prop="last_text" label="消息" min-width="130" show-overflow-tooltip />
               <el-table-column prop="suggested_reply" label="建议回复" min-width="150" show-overflow-tooltip />
-              <el-table-column label="操作" width="140" fixed="right">
+              <el-table-column label="状态" width="80">
                 <template #default="{ row }">
-                  <el-button size="small" type="primary" plain @click="reviewDraft(row, 'approved')">通过</el-button>
-                  <el-button size="small" plain @click="reviewDraft(row, 'rejected')">拒绝</el-button>
+                  <el-tag size="small" :type="row.status === 'sent' ? 'success' : row.status === 'approved' ? 'primary' : row.status === 'failed' ? 'danger' : 'info'">
+                    {{ ({ pending: '待审核', approved: '待发送', failed: '失败', sent: '已发送', rejected: '已拒绝' } as Record<string, string>)[row.status] || row.status }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="200" fixed="right">
+                <template #default="{ row }">
+                  <template v-if="row.status === 'pending'">
+                    <el-button size="small" type="primary" plain @click="reviewDraft(row, 'approved')">通过</el-button>
+                    <el-button size="small" plain @click="reviewDraft(row, 'rejected')">拒绝</el-button>
+                  </template>
+                  <el-button
+                    v-if="row.status === 'approved' || row.status === 'failed'"
+                    size="small"
+                    type="primary"
+                    :loading="sendingId === row.id"
+                    @click="sendDraft(row)"
+                  >
+                    发送
+                  </el-button>
                 </template>
               </el-table-column>
               <template #empty>
-                <el-empty description="暂无待审核回复：同步会话时按规则自动生成" />
+                <el-empty description="暂无草稿：同步会话时按规则自动生成待审核回复" />
               </template>
             </el-table>
           </el-card>

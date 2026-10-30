@@ -120,6 +120,20 @@ def review_draft(
     return updated
 
 
+@router.post("/drafts/{draft_id}/send")
+async def send_draft(
+    draft_id: int, service: XhsDmService = Depends(get_dm_service)
+) -> dict:
+    try:
+        return await service.send_draft(draft_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.delete("/drafts/{draft_id}")
 def delete_draft(draft_id: int, store: DmRuleStore = Depends(get_dm_rule_store)) -> dict:
     if not store.delete_draft(draft_id):

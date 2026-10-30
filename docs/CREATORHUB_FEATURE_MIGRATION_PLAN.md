@@ -106,13 +106,13 @@
 - [x] T3.5 签名库移植：`modules/douyin/signing/`（a_bogus/sm3/rc4/ms_token/netfp，文件头均带来源声明）；性质测试通过（a_bogus 164 位/随机性/impersonate 映射）。**API 直连客户端集成留待需要时做**（当前浏览器模式已可用，签名库就位）
 - 验收：180 项测试全绿（P3 共新增 16 项）；真实无头 Chrome 端到端实测监控扫描链路；发布驱动/队列以 mock 驱动测试 + 页面实测渲染（真实发布需用户扫码登录后人工确认，弹窗留有人工验证窗口）。
 
-### Phase 4 — 私信与写操作风控（xhs 先、抖音后）🚧 2026-10-30 第一批完成（T4.1–T4.3）
+### Phase 4 — 私信与写操作风控（xhs 先、抖音后）✅ 2026-10-30 xhs 侧全部完成（T4.4 抖音私信除外）
 
-- [x] T4.3 写操作风控闸：`modules/platforms/risk.py`（滚动小时窗口/日配额、失败冷却阶梯 30m→24h、跨午夜安静时段；状态落 data/risk/state.json）——已接入抖音发布队列：preflight 拦截的任务保持 pending 并写明原因，成功/失败回写计数与冷却
+- [x] T4.3 写操作风控闸：`modules/platforms/risk.py`（滚动小时窗口/日配额、失败冷却阶梯 30m→24h、跨午夜安静时段；状态落 data/risk/state.json）——已接入抖音发布队列与小红书私信发送：preflight 拦截保持原状态并写明原因，成功/失败回写计数与冷却
 - [x] T4.1 小红书私信只读同步：`modules/xhs/dm/`（reader 移植 creatorhub xhs_im.py：/chat 页内第一方 fetch 观察会话与历史，免签名免二次 WS）+ API（conversations/messages）；消息中心页升级双 Tab（任务动态 | 私信），会话列表+未读徽标+消息抽屉
-- [x] T4.2 自动回复规则与审核草稿：`fp_xhs_dm_rules/fp_xhs_dm_drafts`（迁移 0011）——同步会话时对未读消息按关键词规则生成 pending 草稿（同会话同消息去重），页面通过/拒绝审核；**批准后的自动发送（浏览器页操作移植 xhs_dm.py）留待下批**，当前通过后到小红书手动发送
+- [x] T4.2 自动回复规则与审核草稿 + **自动发送（2026-10-30 收尾）**：`fp_xhs_dm_rules/fp_xhs_dm_drafts`（迁移 0011 + 0013 加 error/sent_at 列）——未读消息按关键词规则生成 pending 草稿（去重）→ 页面通过/拒绝 → **「发送」按钮走浏览器 exactly-once 发送**（移植 xhs_dm.py 核心语义：气泡基线计数、dispatch 分界、写接口响应证据/气泡增量双重确认、write_uncertain 不重发），风控闸前置
 - [ ] T4.4 抖音私信（frontier WS + protobuf 解析直接移植 creatorhub，共约 770 行；可降级为会话列表同步）
-- 第一批验收：187 项测试全绿（新增 7 项：风控配额/冷却/安静时段/接入发布、私信解析、规则草稿去重与审核、API）；真实 Chrome 验证消息中心双 Tab 全链路（含未登录优雅提示与规则独立加载修复）。真实会话数据待用户登录小红书后人工确认。
+- 验收：200 项测试全绿（T4.2 发送闭环新增 4 项：payload 判定纯函数、mark_sent 状态流、风控拦截不消耗重试、FakePage 发送链路）；真实发送需用户登录小红书后人工确认。
 
 ### Phase 5 — 快手 / 视频号 / TikTok（独立增量，按需启动）🚧 T5.1 快手 + T5.4 报表完成
 
