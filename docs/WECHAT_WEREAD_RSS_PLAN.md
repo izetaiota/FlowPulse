@@ -220,3 +220,22 @@ FastAPI /api/weread/* ──► Vue3 前端「公众号订阅」页（复用 fro
 - 方案：用户以自己公众号的运营者身份登录 mp.weixin.qq.com（Playwright + 反爬对抗），走后台"素材管理→搜索文章"获取任意公众号 fakeid 并翻页拉取完整历史列表；正文仍走现有公开页抓取
 - 前置：用户需注册一个公众号（免费）；涉及反爬脚本维护，成本高一档，单独立项
 - 参考：we-mp-rss driver/wx（WX_API）+ core/wx（search_Biz / get_Articles）
+
+### 阶段 8.5：订阅级同步周期 + 通知渠道页面化 ✅ 2026-10-29 完成
+
+- scheduler 由全局粗循环改为分钟级 tick（60s）：每订阅按 `sync_interval_minutes`（0=跟随全局）独立判断到期，全局 `WEREAD_SYNC_INTERVAL_MINUTES` 作为默认周期；手动"立即同步全部"仍走 run_once 全量
+- 通知渠道页面化：`fp_notify_channels` / `fp_notify_logs` 表（文件模式 data/notify/），设置页"通知渠道"卡片——增删渠道、启停、发送测试、查看最近 200 条发送记录；环境变量渠道只读展示并与页面渠道合并生效（保存即生效，无需重启）
+- alembic 0006；WebhookNotifier 渠道动态化（env + store 合并去重），逐渠道记录发送结果
+
+### 阶段 8 详细实施设计（公众平台后台采集通道，未启动）
+
+**前置（用户提供）**：一个公众号的运营者微信（免费注册：mp.weixin.qq.com → 立即注册 → 订阅号）。阶段 8 开工前需用户提供并扫码授权。
+
+**技术路径**（参考 we-mp-rss driver/wx.py + core/wx/wx.py，均为 MIT）：
+1. 登录态：Playwright persistent profile（data/weread/mp_profile，与微信读书 profile 分离）打开 mp.weixin.qq.com 扫码；登录后从任意页面提取 `token`（URL 参数或 window 上下文）与 cookie
+2. 搜索公众号：`GET /cgi-bin/searchbiz?action=search_biz&token={t}&lang=zh_CN&f=json&ajax=1&random={r}&query={名称}&begin=0&count=5` → `list[].fakeid/nickname`（解决名称→ID 被风控的问题）
+3. 历史文章列表：`GET /cgi-bin/appmsg?action=list_ex&token={t}&fakeid={f}&query=&begin={offset}&count=5&f=json` → `app_msg_list[]`（title/link/update_time），翻页 begin+=count 直到为空
+4. 正文：复用现有公开页抓取（fetch_public_article），不动
+5. 集成：MpPlatformClient（新 resolver 通道）+ 订阅表加 `channel` 字段区分 weread/mp（同 book_id 双通道去重）+ 页面订阅向导加"公众号平台搜索"路径 + 每日 token/cookie 校验续期（复用 qrlogin 模式）
+
+**风控要点**：请求间隔 ≥5s、单次翻页 ≤10 页/号/轮、固定 UA 与真实浏览器一致；触发系统繁忙（ret!=0）立即停 24h 并告警。公众平台接口配额：搜索 ~10 次/小时、列表 ~100 次/小时（经验值），采集节奏据此设计。

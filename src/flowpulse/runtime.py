@@ -25,6 +25,7 @@ from flowpulse.modules.douyin.transcribers.sensevoice import SenseVoiceTranscrib
 from flowpulse.modules.douyin.transcribers.tingwu import TingwuTranscriber
 from flowpulse.modules.douyin.transcribers.whisper import WhisperTranscriber
 from flowpulse.modules.menu import MenuRepository
+from flowpulse.modules.notify import NotifyStore
 from flowpulse.modules.weread.qrlogin import WereadQrLoginManager
 from flowpulse.modules.weread.refresh import WereadCookieRefresher
 from flowpulse.modules.weread.scheduler import WereadScheduler
@@ -53,6 +54,7 @@ class Runtime:
     weread_cookie_refresher: WereadCookieRefresher
     menu_repository: MenuRepository
     auth_store: AuthUserStore
+    notify_store: NotifyStore
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -148,12 +150,15 @@ def build_runtime(settings: Settings) -> Runtime:
         )
     if settings.weread_cookie and not weread_repository.get_credential():
         weread_repository.save_credential(settings.weread_cookie)
-    weread_notifier = (
-        WebhookNotifier(
-            client, [settings.weread_webhook_url, settings.weread_notify_channels]
-        )
-        if (settings.weread_webhook_url or settings.weread_notify_channels)
-        else None
+    # 通知渠道库（页面可管理，运行时与环境变量渠道合并生效）
+    notify_store = NotifyStore(
+        db_sessionmaker,  # DATABASE_URL 模式走 fp_notify_channels/fp_notify_logs 表
+        settings.data_dir / "notify",
+    )
+    # 始终构造 notifier：渠道动态判断（env 为空时页面添加的渠道同样生效）
+    weread_notifier = WebhookNotifier(
+        client, [settings.weread_webhook_url, settings.weread_notify_channels],
+        store=notify_store,
     )
     menu_repository = MenuRepository(
         db_sessionmaker,  # DATABASE_URL 模式走 fp_app_menus 表，否则 data/app/menus.json
@@ -215,5 +220,6 @@ def build_runtime(settings: Settings) -> Runtime:
         weread_cookie_refresher=weread_cookie_refresher,
         menu_repository=menu_repository,
         auth_store=auth_store,
+        notify_store=notify_store,
         db_engine=db_engine,
     )

@@ -58,6 +58,8 @@ class MpSubscription(BaseModel):
     strip_keywords: str = ""
     # --- 新文章推送开关（需配置通知渠道）---
     notify_new: bool = True
+    # --- 订阅级同步周期（分钟）：0 = 跟随全局 WEREAD_SYNC_INTERVAL_MINUTES ---
+    sync_interval_minutes: int = 0
 
 
 class SubscriptionUpdateRequest(BaseModel):
@@ -70,6 +72,7 @@ class SubscriptionUpdateRequest(BaseModel):
     rss_max_items: int = Field(default=0, ge=0, le=500)
     strip_keywords: str = ""
     notify_new: bool = True
+    sync_interval_minutes: int = Field(default=0, ge=0, le=1440)
 
 
 class MpArticle(BaseModel):

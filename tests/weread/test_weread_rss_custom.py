@@ -58,11 +58,11 @@ def test_clean_html_keeps_entities_and_void():
 def test_notifier_multichannel_dedupe_and_formats():
     feishu_url = "https://open.feishu.cn/open-apis/bot/v2/hook/a"
     notifier = WebhookNotifier(None, f" {feishu_url} , {feishu_url} , ")
-    assert notifier._urls == [feishu_url]  # 去重去空
+    assert notifier._all_urls() == [feishu_url]  # 去重去空
     payload = notifier._payload(feishu_url, "标题", "内容")
     assert payload == {"msg_type": "text", "content": {"text": "标题\n内容"}}
 
-    image_payload, _ = notifier._image_payload(feishu_url, "t", "m", "aGVsbG8=")
+    image_payload = notifier._image_payload(feishu_url, "t", "m", "aGVsbG8=")
     assert image_payload["msg_type"] == "image"
     assert set(image_payload["image"]) == {"base64", "md5"}
 
@@ -236,3 +236,40 @@ def test_push_disabled_by_subscription_flag(tmp_path: Path, monkeypatch):
         await service.client._client.aclose()
 
     asyncio.run(run())
+
+
+# ---- 订阅级同步周期（scheduler tick 化） ----
+
+
+def test_sub_level_sync_interval_due_check(tmp_path: Path):
+    from datetime import UTC, datetime, timedelta
+
+    from flowpulse.modules.weread.scheduler import WereadScheduler
+
+    repo = WereadRepository(tmp_path)
+    scheduler = WereadScheduler(
+        WereadService(repo, httpx.AsyncClient(), request_interval_seconds=0),
+        repo,
+        interval_minutes=60,
+    )
+    now = datetime.now(UTC)
+
+    fresh = MpSubscription(
+        book_id="FRESH", last_sync_at=(now - timedelta(minutes=5)).isoformat()
+    )  # 全局 60 分钟，5 分钟前同步过 → 未到期
+    assert scheduler._sub_due(fresh) is False
+
+    custom_short = MpSubscription(
+        book_id="SHORT", sync_interval_minutes=30,
+        last_sync_at=(now - timedelta(minutes=40)).isoformat(),
+    )  # 订阅级 30 分钟，40 分钟前 → 到期
+    assert scheduler._sub_due(custom_short) is True
+
+    custom_long = MpSubscription(
+        book_id="LONG", sync_interval_minutes=240,
+        last_sync_at=(now - timedelta(minutes=100)).isoformat(),
+    )  # 订阅级 240 分钟，100 分钟前 → 未到期（全局 60 不影响）
+    assert scheduler._sub_due(custom_long) is False
+
+    never = MpSubscription(book_id="NEVER")  # 从未同步 → 到期
+    assert scheduler._sub_due(never) is True

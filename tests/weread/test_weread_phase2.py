@@ -116,12 +116,12 @@ def test_webhook_payload_formats():
         "markdown": {"title": "标题", "text": "**标题**\n\n内容"},
     }
     feishu = _notifier("https://open.feishu.cn/open-apis/bot/v2/hook/x")
-    assert feishu._payload(feishu._urls[0], "标题", "内容") == {
+    assert feishu._payload(feishu._env_urls[0], "标题", "内容") == {
         "msg_type": "text",
         "content": {"text": "标题\n内容"},
     }
     generic = _notifier("https://example.com/hook")
-    assert generic._payload(generic._urls[0], "标题", "内容") == {"title": "标题", "text": "内容"}
+    assert generic._payload(generic._env_urls[0], "标题", "内容") == {"title": "标题", "text": "内容"}
 
 
 @respx.mock

@@ -6,9 +6,14 @@ from datetime import UTC, datetime, timedelta
 
 from flowpulse.core.notify import WebhookNotifier
 from flowpulse.modules.weread.client import WereadAPIError
-from flowpulse.modules.weread.models import now_iso
+from flowpulse.modules.weread.models import MpSubscription, now_iso
 from flowpulse.modules.weread.service import WereadService
 from flowpulse.modules.weread.storage import WereadRepository
+
+# 检查粒度：每分钟看一次哪些订阅到期（支持订阅级更短的同步周期）
+_TICK_SECONDS = 60.0
+# 到期判断容差，避免 tick 边界抖动导致偶发跳过
+_DUE_TOLERANCE_SECONDS = 5.0
 
 
 class WereadScheduler:
@@ -56,10 +61,77 @@ class WereadScheduler:
             await asyncio.sleep(delay)
         while True:
             try:
-                await self.run_once()
+                await self.run_tick()
             except Exception:  # noqa: BLE001 - 后台循环不允许中断
                 pass
-            await asyncio.sleep(self.interval_minutes * 60)
+            await asyncio.sleep(_TICK_SECONDS)
+
+    async def run_tick(self) -> dict:
+        """按订阅粒度检查到期并同步：订阅级周期（sync_interval_minutes>0）优先，
+        否则用全局 interval_minutes；到期的订阅逐个同步并聚合告警。"""
+        if self.interval_minutes <= 0:
+            return {"skipped": "disabled"}
+        subs = self.service.list_subscriptions()
+        due = [
+            sub for sub in subs
+            if self._sub_due(sub)
+        ]
+        if not due:
+            return {"checked": len(subs), "synced": 0}
+        self.repository.save_scheduler_state(
+            {**self.repository.load_scheduler_state(), "running": True}
+        )
+        results = []
+        try:
+            for sub in due:
+                results.append(await self.service.sync_subscription(sub.book_id))
+        finally:
+            state = self.repository.load_scheduler_state()
+            state.update(
+                running=False,
+                last_run_at=now_iso(),
+                last_result={
+                    "ok_count": sum(1 for r in results if r.status == "ok"),
+                    "error_count": sum(1 for r in results if r.status != "ok"),
+                    "new_articles": sum(r.new_articles for r in results),
+                },
+            )
+            self.repository.save_scheduler_state(state)
+        await self._alert_results(results)
+        return {"checked": len(subs), "synced": len(results), **state["last_result"]}
+
+    def _sub_due(self, sub: MpSubscription) -> bool:
+        interval = sub.sync_interval_minutes or self.interval_minutes
+        if interval <= 0:
+            return False
+        if not sub.last_sync_at:
+            return True
+        try:
+            last = datetime.fromisoformat(sub.last_sync_at)
+        except (TypeError, ValueError):
+            return True
+        elapsed = (datetime.now(UTC) - last).total_seconds()
+        return elapsed >= interval * 60 - _DUE_TOLERANCE_SECONDS
+
+    async def _alert_results(self, results: list) -> None:
+        """按同步结果聚合告警：登录失效优先（附二维码），其次普通失败。"""
+        if not self.notifier or not results:
+            return
+        failures = [r for r in results if r.status != "ok"]
+        auth_failures = [r for r in failures if r.status == "auth_error"]
+        if auth_failures:
+            names = "、".join(r.name or r.book_id for r in auth_failures)
+            await self._send_auth_alert(
+                f"以下订阅采集报登录失效：{names}\n"
+                "自动续期未恢复，可扫通知附带的二维码（或到系统页面）重新授权。"
+            )
+        elif failures:
+            names = "、".join(r.name or r.book_id for r in failures)
+            await self.notifier.send(
+                "weread_sync_error",
+                "心流 FlowPulse · 公众号同步异常",
+                f"以下订阅同步失败：{names}\n详情见工作台状态页。",
+            )
 
     def _seconds_until_due(self) -> float:
         interval = self.interval_minutes * 60.0
@@ -100,22 +172,7 @@ class WereadScheduler:
                 "new_articles": summary.new_articles,
                 "finished_at": summary.finished_at,
             }
-            failures = [d for d in summary.details if d.status != "ok"]
-            auth_failures = [d for d in failures if d.status == "auth_error"]
-            if self.notifier:
-                if auth_failures:
-                    names = "、".join(d.name or d.book_id for d in auth_failures)
-                    await self._send_auth_alert(
-                        f"以下订阅采集报登录失效：{names}\n"
-                        "自动续期未恢复，可扫通知附带的二维码（或到系统页面）重新授权。"
-                    )
-                elif failures:
-                    names = "、".join(d.name or d.book_id for d in failures)
-                    await self.notifier.send(
-                        "weread_sync_error",
-                        "心流 FlowPulse · 公众号同步异常",
-                        f"以下订阅同步失败：{names}\n详情见工作台状态页。",
-                    )
+            await self._alert_results(summary.details)
         except WereadAPIError as exc:
             result = {"error": exc.message}
             if self.notifier and exc.kind == "auth":

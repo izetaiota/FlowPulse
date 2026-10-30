@@ -196,6 +196,7 @@ class WereadService:
         sub.rss_max_items = request.rss_max_items
         sub.strip_keywords = request.strip_keywords.strip()
         sub.notify_new = request.notify_new
+        sub.sync_interval_minutes = request.sync_interval_minutes
         return self.repository.upsert_subscription(sub)
 
     def delete_subscription(self, book_id: str) -> bool:

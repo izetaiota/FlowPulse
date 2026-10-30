@@ -24,6 +24,7 @@ export interface WereadSubscription {
   rss_max_items: number;
   strip_keywords: string;
   notify_new: boolean;
+  sync_interval_minutes: number;
 }
 
 export interface WereadArticle {
@@ -116,6 +117,7 @@ export interface SubscriptionUpdatePayload {
   rss_max_items: number;
   strip_keywords: string;
   notify_new: boolean;
+  sync_interval_minutes: number;
 }
 
 export const wereadApi = {

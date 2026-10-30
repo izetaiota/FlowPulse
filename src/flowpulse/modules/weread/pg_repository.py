@@ -181,6 +181,7 @@ class PgWereadRepository:
             rss_max_items=row.rss_max_items or 0,
             strip_keywords=row.strip_keywords or "",
             notify_new=row.notify_new if row.notify_new is not None else True,
+            sync_interval_minutes=row.sync_interval_minutes or 0,
         )
 
     def list_subscriptions(self) -> list[MpSubscription]:
@@ -218,6 +219,7 @@ class PgWereadRepository:
             rss_max_items=sub.rss_max_items,
             strip_keywords=sub.strip_keywords,
             notify_new=sub.notify_new,
+            sync_interval_minutes=sub.sync_interval_minutes,
         )
         with self._sessionmaker() as session:
             row = session.get(WereadSubscriptionRow, sub.book_id)

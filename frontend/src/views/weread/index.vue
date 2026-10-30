@@ -236,6 +236,7 @@ const editForm = reactive({
   rss_max_items: 0,
   strip_keywords: "",
   notify_new: true,
+  sync_interval_minutes: 0,
 });
 
 function openEdit(sub: WereadSubscription) {
@@ -247,6 +248,7 @@ function openEdit(sub: WereadSubscription) {
   editForm.rss_max_items = sub.rss_max_items || 0;
   editForm.strip_keywords = sub.strip_keywords || "";
   editForm.notify_new = sub.notify_new !== false;
+  editForm.sync_interval_minutes = sub.sync_interval_minutes || 0;
   editVisible.value = true;
 }
 
@@ -265,6 +267,7 @@ async function saveEdit() {
       rss_max_items: editForm.rss_max_items,
       strip_keywords: editForm.strip_keywords,
       notify_new: editForm.notify_new,
+      sync_interval_minutes: editForm.sync_interval_minutes,
     });
     ElMessage.success("订阅设置已保存");
     editVisible.value = false;
@@ -731,6 +734,10 @@ onMounted(async () => {
         <el-form-item label="条数上限">
           <el-input-number v-model="editForm.rss_max_items" :min="0" :max="500" />
           <span class="ml-2 text-xs text-gray-400">0 = 默认 100 条</span>
+        </el-form-item>
+        <el-form-item label="同步周期">
+          <el-input-number v-model="editForm.sync_interval_minutes" :min="0" :max="1440" :step="15" />
+          <span class="ml-2 text-xs text-gray-400">分钟，0 = 跟随全局；不建议低于 15</span>
         </el-form-item>
         <el-divider content-position="left">正文与通知</el-divider>
         <el-form-item label="清洗关键词">

@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { menuApi, type MenuItemData } from "@/api/menu";
 import { authApi } from "@/api/auth";
+import { notifyApi, type NotifyChannel } from "@/api/notify";
 import { useAuthStore } from "@/stores/auth";
 import { useMenuStore } from "@/stores/menu";
 
@@ -115,7 +116,77 @@ async function resetDefaults() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadNotify();
+});
+
+// --- 通知渠道管理（环境变量渠道只读展示，页面渠道可增删） ---
+const envChannels = ref<NotifyChannel[]>([]);
+const notifyRows = ref<{ name: string; url: string; enabled: boolean }[]>([]);
+const notifyLoading = ref(false);
+const notifySaving = ref(false);
+const notifyTesting = ref(false);
+const notifyLogs = ref<{ channel: string; title: string; ok: boolean; detail: string; created_at: string }[]>([]);
+
+async function loadNotify() {
+  notifyLoading.value = true;
+  try {
+    const { channels } = await notifyApi.listChannels();
+    envChannels.value = channels.filter((c) => c.source === "env");
+    notifyRows.value = channels
+      .filter((c) => c.source === "db")
+      .map((c) => ({ name: c.name, url: c.url, enabled: c.enabled }));
+    notifyApi.listLogs(20).then(({ logs }) => (notifyLogs.value = logs)).catch(() => {});
+  } catch {
+    ElMessage.error("通知渠道加载失败");
+  } finally {
+    notifyLoading.value = false;
+  }
+}
+
+function addChannel() {
+  notifyRows.value.push({ name: "", url: "", enabled: true });
+}
+
+async function saveChannels() {
+  for (const row of notifyRows.value) {
+    if (!row.url.trim().startsWith("http")) {
+      ElMessage.warning("渠道地址需以 http(s):// 开头");
+      return;
+    }
+  }
+  notifySaving.value = true;
+  try {
+    await notifyApi.saveChannels(
+      notifyRows.value.map((r) => ({
+        name: r.name.trim() || "未命名渠道",
+        url: r.url.trim(),
+        enabled: r.enabled,
+      })),
+    );
+    ElMessage.success("通知渠道已保存");
+    await loadNotify();
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(typeof detail === "string" ? detail : "保存失败");
+  } finally {
+    notifySaving.value = false;
+  }
+}
+
+async function sendTest() {
+  notifyTesting.value = true;
+  try {
+    const { sent } = await notifyApi.sendTest();
+    if (sent) ElMessage.success("测试消息已发送，到各渠道确认接收");
+    else ElMessage.warning("没有可用渠道或全部发送失败，检查地址与机器人配置");
+    const { logs } = await notifyApi.listLogs(20);
+    notifyLogs.value = logs;
+  } finally {
+    notifyTesting.value = false;
+  }
+}
 
 // --- 登录账号（改密；账号名不可改，密码存库为哈希） ---
 const passwordForm = reactive({ oldPassword: "", newPassword: "", confirm: "" });
@@ -222,6 +293,79 @@ async function changePassword() {
         菜单存于数据库（DATABASE_URL 模式）或 data/app/menus.json；标识留空自动生成；
         图标使用 Element Plus 图标名（如 Odometer、Reading）；保存后侧栏即时生效。
       </div>
+    </el-card>
+
+    <el-card shadow="never">
+      <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="font-bold">通知渠道</span>
+          <div class="flex gap-2">
+            <el-button size="small" :loading="notifyTesting" @click="sendTest">发送测试</el-button>
+            <el-button size="small" @click="addChannel">新增渠道</el-button>
+            <el-button size="small" type="primary" :loading="notifySaving" @click="saveChannels">保存</el-button>
+          </div>
+        </div>
+      </template>
+
+      <el-table v-if="envChannels.length" :data="envChannels" size="small" class="mb-2">
+        <el-table-column label="环境变量渠道（只读）" min-width="140">
+          <template #default="{ row }">
+            <el-tag size="small" type="info">{{ row.name }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="地址" min-width="280">
+          <template #default="{ row }">
+            <span class="text-xs text-gray-400 break-all">{{ row.url }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-table v-loading="notifyLoading" :data="notifyRows" size="small">
+        <el-table-column label="名称" min-width="140">
+          <template #default="{ row }">
+            <el-input v-model="row.name" size="small" placeholder="渠道名" />
+          </template>
+        </el-table-column>
+        <el-table-column label="Webhook 地址" min-width="280">
+          <template #default="{ row }">
+            <el-input v-model="row.url" size="small" placeholder="https://..." />
+          </template>
+        </el-table-column>
+        <el-table-column label="启用" width="70" align="center">
+          <template #default="{ row }">
+            <el-switch v-model="row.enabled" size="small" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="70" align="center">
+          <template #default="{ $index }">
+            <el-button size="small" text type="danger" @click="notifyRows.splice($index, 1)">删</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="mt-2 text-xs text-gray-400">
+        支持飞书 / 钉钉 / 自定义 webhook，按地址自动适配格式。新文章推送、Cookie 失效告警、
+        小红书掉线告警等发往全部启用渠道；保存后立即生效，无需重启。
+      </div>
+
+      <el-divider content-position="left">最近发送记录</el-divider>
+      <el-table v-if="notifyLogs.length" :data="notifyLogs" size="small" max-height="240">
+        <el-table-column label="时间" width="160">
+          <template #default="{ row }">{{ row.created_at?.replace("T", " ").slice(0, 19) }}</template>
+        </el-table-column>
+        <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
+        <el-table-column label="渠道" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="text-xs break-all">{{ row.channel }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="结果" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.ok ? 'success' : 'danger'">{{ row.ok ? "成功" : "失败" }}</el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-else :image-size="50" description="暂无发送记录" />
     </el-card>
 
     <el-card shadow="never">

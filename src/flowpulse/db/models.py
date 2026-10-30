@@ -8,6 +8,8 @@
   fp_weread_kv             调度器等键值状态（scheduler / cookie_refresher）
   fp_app_menus             侧栏菜单（数据驱动）
   fp_users                 Web 登录账号（单行 id=1；密码 PBKDF2 哈希，永不存明文）
+  fp_notify_channels       通知渠道（页面管理的 webhook 地址）
+  fp_notify_logs           通知发送记录（环形保留最近若干条）
 """
 
 from __future__ import annotations
@@ -58,6 +60,8 @@ class WereadSubscriptionRow(Base):
     strip_keywords: Mapped[str] = mapped_column(Text, default="")
     # 新文章推送开关
     notify_new: Mapped[bool] = mapped_column(Boolean, default=True)
+    # 订阅级同步周期（分钟），0 = 跟随全局
+    sync_interval_minutes: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class WereadArticleRow(Base):
@@ -137,3 +141,29 @@ class UserRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class NotifyChannelRow(Base):
+    """通知渠道（页面可管理；环境变量渠道不入库，运行时合并生效）。"""
+
+    __tablename__ = "fp_notify_channels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), default="")
+    url: Mapped[str] = mapped_column(Text, default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class NotifyLogRow(Base):
+    """通知发送记录（按渠道逐条记录，超量裁剪保留最近部分）。"""
+
+    __tablename__ = "fp_notify_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    channel: Mapped[str] = mapped_column(String(128), default="")
+    kind: Mapped[str] = mapped_column(String(64), default="")
+    title: Mapped[str] = mapped_column(Text, default="")
+    ok: Mapped[bool] = mapped_column(Boolean, default=False)
+    detail: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
