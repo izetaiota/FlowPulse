@@ -26,6 +26,7 @@ from flowpulse.modules.douyin.transcribers.router import TranscriberRouter
 from flowpulse.modules.douyin.transcribers.sensevoice import SenseVoiceTranscriber
 from flowpulse.modules.douyin.transcribers.tingwu import TingwuTranscriber
 from flowpulse.modules.douyin.transcribers.whisper import WhisperTranscriber
+from flowpulse.modules.downloader import DownloadService, DownloadStore
 from flowpulse.modules.menu import MenuRepository
 from flowpulse.modules.notify import NotifyStore
 from flowpulse.modules.queue import QueueService
@@ -67,6 +68,7 @@ class Runtime:
     queue_service: QueueService
     xhs_monitor_service: XhsMonitorService
     xhs_monitor_scheduler: XhsMonitorScheduler
+    download_service: DownloadService
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -247,6 +249,9 @@ def build_runtime(settings: Settings) -> Runtime:
         enabled=settings.xhs_monitor_enabled,
     )
 
+    # 通用链接下载（P2）：yt-dlp 任务化下载（可选依赖，未安装时 API 优雅报错）
+    download_service = DownloadService(DownloadStore(settings.data_dir / "downloads"))
+
     return Runtime(
         settings=settings,
         client=client,
@@ -267,5 +272,6 @@ def build_runtime(settings: Settings) -> Runtime:
         queue_service=queue_service,
         xhs_monitor_service=xhs_monitor_service,
         xhs_monitor_scheduler=xhs_monitor_scheduler,
+        download_service=download_service,
         db_engine=db_engine,
     )

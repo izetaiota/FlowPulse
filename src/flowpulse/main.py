@@ -8,6 +8,8 @@ from flowpulse.core.auth import router as auth_router
 from flowpulse.modules.accounts import get_account_service
 from flowpulse.modules.accounts import router as accounts_router
 from flowpulse.modules.douyin.api.routes import get_pipeline, get_repository, router
+from flowpulse.modules.downloader import get_download_service
+from flowpulse.modules.downloader import router as downloads_router
 from flowpulse.modules.menu import get_menu_repository
 from flowpulse.modules.menu import router as menu_router
 from flowpulse.modules.notify import (
@@ -70,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_monitor_router, dependencies=[Depends(require_auth)])
+    app.include_router(downloads_router, dependencies=[Depends(require_auth)])
     app.include_router(weread_router, dependencies=[Depends(require_auth)])
     app.include_router(menu_router, dependencies=[Depends(require_auth)])
     app.include_router(notify_router, dependencies=[Depends(require_auth)])
@@ -90,6 +93,7 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_queue_service] = lambda: runtime.queue_service
     app.dependency_overrides[get_monitor_service] = lambda: runtime.xhs_monitor_service
     app.dependency_overrides[get_monitor_scheduler] = lambda: runtime.xhs_monitor_scheduler
+    app.dependency_overrides[get_download_service] = lambda: runtime.download_service
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service

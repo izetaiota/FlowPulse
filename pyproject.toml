@@ -46,6 +46,10 @@ weread = [
 browser = [
   "patchright>=1.61.0",
 ]
+download = [
+  "yt-dlp>=2025.1.15",
+  "imageio-ffmpeg>=0.5.1",
+]
 postgres = [
   "sqlalchemy>=2.0.30",
   "psycopg[binary]>=3.2",
