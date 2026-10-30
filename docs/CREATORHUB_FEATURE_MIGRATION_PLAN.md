@@ -138,6 +138,15 @@
 - Dockerfile：`browser` 组需要 Chromium 与中文字体（镜像显著变大，建议独立 `flowpulse-full` 变体或 compose profile）；`download` 组补 ffmpeg（已有）
 - 数据约定：浏览器 Profile、媒体文件一律落 `data/`（PG 模式也只把元数据入库，二进制走文件系统），与现有 weread 文章缓存一致
 - 测试：每模块 `tests/<module>/`，浏览器边界全部 mock（参考 creatorhub 的 no_real_browser 思路：未 mock 的浏览器调用 = 测试失败）；监控调度用假时钟测去重/回填
+
+### 测试与验证隔离规约（2026-10-30 事故后新增，**强制执行**）
+
+**背景**：开发期间发现测试套件每次运行都在向外部发真实 HTTP（通知测试携带真实飞书 webhook 地址直接 POST），且手工验证实例曾以默认配置启动——微信读书同步/无头续期、各平台监控调度器全部真实启用，反复请求平台页面。已修复并立规如下：
+
+1. **外网哨兵（tests/conftest.py，autouse）**：全局 respx 拦截一切 httpx 真实外网请求——测试里任何未 mock 的外部调用直接失败并留堆栈。新增测试涉及外部 HTTP 时必须 respx mock，禁止真实外联。
+2. **浏览器哨兵（tests/conftest.py，autouse）**：禁止测试启动真实浏览器（浏览器引擎层 / weread 扫码与无头续期入口已挂守卫）。确需真浏览器的冒烟测试必须打 `@pytest.mark.real_browser` 显式豁免（marker 已在 pyproject 注册），并在提交说明里注明。
+3. **验证实例规约**：任何手工验证实例必须走 `scripts/run_verify_instance.sh`（临时 DATA_DIR + WEREAD/XHS/DOUYIN/KS/TIKTOK 全部调度与自愈关闭 + 静态托管）。**禁止裸 uvicorn 指向真实 data/**——默认配置下微信读书同步每 60 分钟真实请求、Cookie 续期每 24 小时开无头浏览器访问微信读书登录页。
+4. 需要验证"调度器真实运行"的场景：用真实凭证 + 短间隔显式启动一次性实例，用完即关，不许长期挂后台。
 - 每阶段一个 PR 或一组小 PR，遵循现有提交风格（`feat:中文描述`）
 
 ---

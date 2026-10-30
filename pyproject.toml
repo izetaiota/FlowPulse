@@ -74,6 +74,9 @@ packages = ["src/flowpulse"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "real_browser: 显式豁免浏览器哨兵（真实拉起浏览器的冒烟测试专用）",
+]
 
 [tool.ruff]
 line-length = 100

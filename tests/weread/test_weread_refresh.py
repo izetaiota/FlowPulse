@@ -1,3 +1,4 @@
+import pytest
 """阶段 5 测试：Cookie 无头续期（refresher 编排逻辑与 API）。"""
 
 from pathlib import Path
@@ -131,6 +132,7 @@ def test_refresh_browser_busy(tmp_path: Path):
     assert repository.get_credential().cookie == "old_cookie"
 
 
+@pytest.mark.real_browser
 def test_capture_headless_blocked_while_qr_running(tmp_path: Path):
     """扫码窗口开着时，无头续期应直接拒绝（同一 profile 不能双开）。"""
     import asyncio

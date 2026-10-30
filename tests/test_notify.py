@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import respx
 from fastapi.testclient import TestClient
 
 from flowpulse.config import Settings
@@ -83,8 +84,10 @@ def test_notify_api_flow(tmp_path: Path, monkeypatch):
         assert len(saved) == 2 and all(c["source"] == "db" for c in saved)
 
         # 渠道立即生效：runtime 的 notifier 读同一 store（这里验证 store 数据可见）
-        # 测试消息发送（无真实渠道地址时 sent=False，但请求成功返回）
-        result = client.post("/api/notify/test")
+        # 测试消息发送：webhook 必须 mock（外网哨兵会拦截真实请求，见 conftest）
+        with respx.mock:
+            respx.post("https://open.feishu.cn/open-apis/bot/v2/hook/a").respond(json={"ok": True})
+            result = client.post("/api/notify/test")
         assert result.status_code == 200 and "sent" in result.json()
 
         # 日志接口
