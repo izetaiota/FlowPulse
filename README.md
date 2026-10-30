@@ -7,8 +7,7 @@ English | [中文](./README.zh.md)
 **FlowPulse** (Chinese: 心流) is an all-in-one content-operations workbench for individual bloggers and independent creators. It aims to connect WeChat Official Accounts, Douyin, Xiaohongshu (RED) and WeChat Channels, and bring topic planning, asset management, unified inbox, batch publishing, content analytics and ad-spend ROI review into a single system — deployable as SaaS or self-hosted via Docker. The core idea: not to manage your accounts for you, but to cut away operational chores and protect your creative flow.
 
 - Website: <https://izetaiota.github.io/FlowPulse/>
-- Product docs: [plan.md](plan.md) (naming, competitor research, feature list, website copy, architecture — in Chinese)
-- Technical docs: the [docs/](docs/) directory (Douyin transcription pipeline, Official Account RSS migration plan, etc.)
+- Product & technical docs: the [docs/](docs/) directory (module plans, architecture notes, migration guides — mostly in Chinese)
 
 ## Project Status
 
@@ -19,9 +18,9 @@ FlowPulse is in an **early stage of development**, advancing the MVP along the p
 | Official Account RSS (WeRead channel) | `src/flowpulse/modules/weread/` | ✅ Working | Subscribe / incremental sync / in-app reading / RSS output / built-in scheduling / webhook alerts |
 | Douyin transcription | `src/flowpulse/modules/douyin/` | ✅ Working | Short-video parsing + speech-to-text, structured output (JSON / SRT / Markdown) |
 | Xiaohongshu crawling | `src/flowpulse/modules/xhs/` | ✅ Working | Note / user / search crawling, media download, Excel export (verified with a real account) |
-| Workbench frontend | `frontend/` | 🚧 Skeleton | Vue 3 + Element Plus; subscription, Xiaohongshu and transcription pages are wired up, the rest are placeholders |
+| Workbench frontend | `frontend/` | 🚧 In progress | Vue 3 + Element Plus; login & auth, DB-driven menus, subscription manager with per-feed RSS customization, Xiaohongshu workbench, transcription tasks, notification-channel settings |
 | Website landing page | `website/` | ✅ Live | Auto-deployed to GitHub Pages |
-| Unified inbox / topics / asset library / batch publishing / content & ad analytics | — | 📋 Planned | See the feature list in [plan.md](plan.md) |
+| Unified inbox / topics / asset library / batch publishing / content & ad analytics | — | 📋 Planned | Later milestones on the roadmap |
 
 ## Getting Started
 
@@ -227,7 +226,7 @@ Upstream sync notes: when the platform's algorithms change, pull the new version
 
 ## Workbench frontend
 
-`frontend/` is a Vue 3 + Vite + TypeScript + Element Plus + Pinia + Tailwind CSS admin skeleton; pages follow the feature list in [plan.md](plan.md):
+`frontend/` is a Vue 3 + Vite + TypeScript + Element Plus + Pinia + Tailwind CSS admin skeleton; pages follow the product roadmap:
 
 | Route | Module | Status |
 | --- | --- | --- |
@@ -249,7 +248,7 @@ src/flowpulse/
   console/           one-shot task CLI (for external cron / Task Scheduler)
   core/              shared infrastructure: storage (atomic writes) / notify (webhooks) / crypto (credential encryption)
   db/                database layer: SQLAlchemy models and engine (PostgreSQL mode)
-  modules/           business module domains (per plan.md; new modules go here)
+  modules/           business module domains (new modules go here)
     weread/          Official Account RSS (WeRead channel): client / service / storage / rss / scheduler / qrlogin / refresh / api
     douyin/          Douyin transcription: resolvers / services / transcribers / renderers / storage / api
     xhs/             Xiaohongshu crawling: apis / xhs_utils / spider (upstream port) + integration (project layer)
@@ -279,7 +278,7 @@ data/                runtime data (tasks, subscriptions, login state; not commit
 - [ ] Content analytics and ad-spend ROI
 - [x] Docker self-hosted deployment (Dockerfile + docker-compose, single container)
 
-Full feature list in [plan.md](plan.md).
+See the Project Status table above for the feature roadmap.
 
 ## Current limitations
 

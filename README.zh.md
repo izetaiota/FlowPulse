@@ -7,8 +7,7 @@
 **心流 FlowPulse** —— 面向个人博主、独立创作者的自媒体全域运营工作台。规划打通公众号 / 抖音 / 小红书 / 视频号，把选题库、素材库、多渠道消息聚合、批量分发、内容数据、投流 ROI 复盘收进一个系统，支持 SaaS 与 Docker 私有化本地部署。核心主张：不是帮你管控账号，而是砍掉运营琐事，保护你的创作状态。
 
 - 官网：<https://izetaiota.github.io/FlowPulse/>
-- 产品文档：[plan.md](plan.md)（命名方案、竞品调研、功能清单、官网文案、技术架构）
-- 技术方案：[docs/](docs/) 目录（抖音转写流水线、公众号 RSS 迁移计划等）
+- 产品与技术文档：[docs/](docs/) 目录（各模块实施计划、架构说明、迁移指南）
 
 ## 项目状态
 
@@ -19,9 +18,9 @@ FlowPulse 处于 **早期开发阶段**，按「内容采集 → 工作台 → �
 | 公众号订阅 RSS（微信读书通道） | `src/flowpulse/modules/weread/` | ✅ 可用 | 订阅增删、增量同步、站内阅读、RSS 输出、内置定时调度、Webhook 告警 |
 | 抖音转写 | `src/flowpulse/modules/douyin/` | ✅ 可用 | 短视频解析 + 语音转写，输出结构化语料（JSON / SRT / Markdown） |
 | 小红书抓取 | `src/flowpulse/modules/xhs/` | ✅ 可用 | 笔记 / 用户 / 搜索抓取、媒体下载、Excel 导出（真实账号实测通过） |
-| 工作台前端 | `frontend/` | 🚧 骨架 | Vue3 + Element Plus；公众号订阅、小红书、抖音转写页已可用，其余页面为占位 |
+| 工作台前端 | `frontend/` | 🚧 进行中 | Vue3 + Element Plus；单账号登录、数据库菜单、订阅管理（RSS 定制）、小红书工作台、转写任务、通知渠道设置 |
 | 官网落地页 | `website/` | ✅ 上线 | GitHub Pages 自动部署 |
-| 消息中心 / 选题库 / 素材库 / 批量分发 / 内容与投流数据 | — | 📋 规划 | 见 [plan.md](plan.md) 功能需求清单 |
+| 消息中心 / 选题库 / 素材库 / 批量分发 / 内容与投流数据 | — | 📋 规划 | 路线图后续里程碑 |
 
 ## 快速开始
 
@@ -231,7 +230,7 @@ data/tasks/<task-id>/
 
 ## 工作台前端
 
-`frontend/` 为 Vue 3 + Vite + TypeScript + Element Plus + Pinia + Tailwind CSS 的管理后台骨架，页面模块按 [plan.md](plan.md)「产品功能需求清单」划分：
+`frontend/` 为 Vue 3 + Vite + TypeScript + Element Plus + Pinia + Tailwind CSS 的管理后台骨架，页面模块按产品路线图划分：
 
 | 路由 | 模块 | 状态 |
 | --- | --- | --- |
@@ -253,7 +252,7 @@ src/flowpulse/
   console/           一次性任务 CLI（配合外部 cron / 任务计划定时执行）
   core/              跨模块共享基建：storage（原子写）/ notify（Webhook 通知）/ crypto（凭证加密）
   db/                数据库层：SQLAlchemy 模型与引擎（PostgreSQL 模式）
-  modules/           业务模块域（对应 plan.md 模块划分，新模块加在这里）
+  modules/           业务模块域（新模块加在这里）
     weread/          公众号订阅 RSS（微信读书通道）：client / service / storage / rss / scheduler / qrlogin / refresh / api
     douyin/          抖音转写：resolvers / services / transcribers / renderers / storage / api
     xhs/             小红书抓取：apis / xhs_utils / spider（上游移植）+ integration（本项目集成层）
@@ -283,7 +282,7 @@ data/                运行时数据（任务、订阅、登录态，不入库�
 - [ ] 内容数据监控与投流 ROI 分析
 - [x] Docker 私有化部署（Dockerfile + docker-compose，单容器前后端合一）
 
-完整功能需求清单见 [plan.md](plan.md)。
+功能路线图见上方「项目状态」表。
 
 ## 当前限制
 
