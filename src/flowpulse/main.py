@@ -27,6 +27,8 @@ from flowpulse.modules.notify import (
 from flowpulse.modules.notify import router as notify_router
 from flowpulse.modules.queue import get_queue_service
 from flowpulse.modules.queue import router as queue_router
+from flowpulse.modules.reports import get_reports_service
+from flowpulse.modules.reports import router as reports_router
 from flowpulse.modules.weread.api import (
     get_weread_cookie_refresher,
     get_weread_qr_login,
@@ -90,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(douyin_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_publish_router, dependencies=[Depends(require_auth)])
     app.include_router(downloads_router, dependencies=[Depends(require_auth)])
+    app.include_router(reports_router, dependencies=[Depends(require_auth)])
     app.include_router(weread_router, dependencies=[Depends(require_auth)])
     app.include_router(menu_router, dependencies=[Depends(require_auth)])
     app.include_router(notify_router, dependencies=[Depends(require_auth)])
@@ -119,6 +122,7 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_douyin_publish_service] = lambda: runtime.douyin_publish_service
     app.dependency_overrides[get_dm_service] = lambda: runtime.xhs_dm_service
     app.dependency_overrides[get_dm_rule_store] = lambda: runtime.xhs_dm_rule_store
+    app.dependency_overrides[get_reports_service] = lambda: runtime.reports_service
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service

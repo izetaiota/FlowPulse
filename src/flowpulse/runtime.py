@@ -39,6 +39,7 @@ from flowpulse.modules.notify import NotifyStore
 from flowpulse.modules.platforms import MonitorScheduler
 from flowpulse.modules.platforms.risk import RiskGate
 from flowpulse.modules.queue import QueueService
+from flowpulse.modules.reports import ReportsService
 from flowpulse.modules.weread.qrlogin import WereadQrLoginManager
 from flowpulse.modules.weread.refresh import WereadCookieRefresher
 from flowpulse.modules.weread.scheduler import WereadScheduler
@@ -86,6 +87,7 @@ class Runtime:
     risk_gate: RiskGate
     xhs_dm_service: XhsDmService
     xhs_dm_rule_store: DmRuleStore
+    reports_service: ReportsService
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -322,6 +324,12 @@ def build_runtime(settings: Settings) -> Runtime:
         xhs_service, settings.data_dir / "browser" / "profiles", xhs_dm_rule_store
     )
 
+    # 报表中心（P5）：站内数据 Excel 导出
+    reports_service = ReportsService(
+        xhs_monitor_repository, douyin_monitor_repository, download_service.store,
+        account_repository,
+    )
+
     return Runtime(
         settings=settings,
         client=client,
@@ -350,5 +358,6 @@ def build_runtime(settings: Settings) -> Runtime:
         risk_gate=risk_gate,
         xhs_dm_service=xhs_dm_service,
         xhs_dm_rule_store=xhs_dm_rule_store,
+        reports_service=reports_service,
         db_engine=db_engine,
     )
