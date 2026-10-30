@@ -76,7 +76,7 @@ async function submit() {
         </ul>
       </div>
 
-      <div class="brand-footer">© 2026 心流 FlowPulse · MIT Open Source</div>
+      <div class="brand-footer">© 2026 心流 FlowPulse</div>
     </aside>
 
     <!-- 表单区 -->
