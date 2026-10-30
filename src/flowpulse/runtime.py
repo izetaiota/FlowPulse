@@ -23,6 +23,9 @@ from flowpulse.modules.douyin.monitoring import (
 )
 from flowpulse.modules.douyin.publish import DouyinPublishService, DouyinPublishStore
 from flowpulse.modules.douyin.resolvers.api import ApiResolver
+from flowpulse.modules.ks.account import KsAccountService
+from flowpulse.modules.ks.browser import KsBrowserFetcher
+from flowpulse.modules.ks.monitoring import KsMonitorRepository, KsMonitorService
 from flowpulse.modules.douyin.resolvers.router import ResolverRouter
 from flowpulse.modules.douyin.resolvers.share_page import SharePageResolver
 from flowpulse.modules.douyin.services.pipeline import PipelineService
@@ -88,6 +91,9 @@ class Runtime:
     xhs_dm_service: XhsDmService
     xhs_dm_rule_store: DmRuleStore
     reports_service: ReportsService
+    ks_account_service: KsAccountService
+    ks_monitor_service: KsMonitorService
+    ks_monitor_scheduler: MonitorScheduler
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -330,6 +336,36 @@ def build_runtime(settings: Settings) -> Runtime:
         account_repository,
     )
 
+    # 快手平台（P5-T5.1）：账号接入 + 拦截式读取 + 作品监控
+    ks_account_service = KsAccountService(
+        account_service, settings.data_dir / "browser" / "profiles"
+    )
+
+    def _ks_login_state() -> tuple[str | None, dict | None]:
+        account = account_service.repository.find_by_key("kuaishou", "default")
+        if account is None:
+            return None, None
+        cookie = account_service.get_credential(account["id"])
+        storage = account.get("storage_state") or None
+        return cookie, storage
+
+    ks_fetcher = KsBrowserFetcher(
+        _ks_login_state,
+        settings.data_dir / "browser" / "profiles",
+        headless=settings.ks_browser_headless,
+    )
+    ks_monitor_repository = KsMonitorRepository(db_sessionmaker, settings.data_dir)
+    reports_service.ks = ks_monitor_repository  # 报表中心补挂快手仓储（构造时快手块尚未创建）
+    ks_monitor_service = KsMonitorService(
+        ks_monitor_repository, ks_fetcher, notifier=weread_notifier
+    )
+    ks_monitor_scheduler = MonitorScheduler(
+        ks_monitor_service,
+        ks_monitor_repository,
+        tick_seconds=settings.ks_monitor_tick_seconds,
+        enabled=settings.ks_monitor_enabled,
+    )
+
     return Runtime(
         settings=settings,
         client=client,
@@ -359,5 +395,8 @@ def build_runtime(settings: Settings) -> Runtime:
         xhs_dm_service=xhs_dm_service,
         xhs_dm_rule_store=xhs_dm_rule_store,
         reports_service=reports_service,
+        ks_account_service=ks_account_service,
+        ks_monitor_service=ks_monitor_service,
+        ks_monitor_scheduler=ks_monitor_scheduler,
         db_engine=db_engine,
     )

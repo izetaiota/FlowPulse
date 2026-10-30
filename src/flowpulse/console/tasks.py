@@ -72,6 +72,12 @@ async def douyin_monitor_scan(rt: Runtime) -> dict:
     return {**result, "ok": result.get("errors", 0) == 0}
 
 
+async def ks_monitor_scan(rt: Runtime) -> dict:
+    """快手作品监控：扫描全部到期目标一次（浏览器拦截式，需已配置快手账号）。"""
+    result = await rt.ks_monitor_scheduler.run_once()
+    return {**result, "ok": result.get("errors", 0) == 0}
+
+
 TASKS: dict[str, TaskSpec] = {
     spec.name: spec
     for spec in (
@@ -83,6 +89,7 @@ TASKS: dict[str, TaskSpec] = {
         TaskSpec("xhs-check", "小红书：登录态校验一次", xhs_check),
         TaskSpec("xhs-monitor-scan", "小红书：作品监控到期目标扫描一次", xhs_monitor_scan),
         TaskSpec("douyin-monitor-scan", "抖音：作品监控到期目标扫描一次", douyin_monitor_scan),
+        TaskSpec("ks-monitor-scan", "快手：作品监控到期目标扫描一次", ks_monitor_scan),
     )
 }
 

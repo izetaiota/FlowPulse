@@ -114,12 +114,13 @@
 - [ ] T4.4 抖音私信（frontier WS + protobuf 解析直接移植 creatorhub，共约 770 行；可降级为会话列表同步）
 - 第一批验收：187 项测试全绿（新增 7 项：风控配额/冷却/安静时段/接入发布、私信解析、规则草稿去重与审核、API）；真实 Chrome 验证消息中心双 Tab 全链路（含未登录优雅提示与规则独立加载修复）。真实会话数据待用户登录小红书后人工确认。
 
-### Phase 5 — 快手 / 视频号 / TikTok（独立增量，按需启动）🚧 T5.4 报表中心完成
+### Phase 5 — 快手 / 视频号 / TikTok（独立增量，按需启动）🚧 T5.1 快手 + T5.4 报表完成
 
-- [ ] T5.1 快手：浏览器模式账号/采集/监控（纯浏览器平台，无签名负担）
+- [x] T5.1 快手（2026-10-30）：`modules/ks/`——extract 解析移植（多候选键兜底：REST /rest/v/profile/feed 与 GraphQL visionProfilePhotoList/VisionSearchPhoto 双通道）、拦截式 fetcher（profile/搜索页滚动拦截）、账号接入（Cookie 需 userId+passToken / 浏览器扫码状态机）、`fp_ks_monitors/contents`（迁移 0012）+ 通用调度；作品监控页第三平台化（快手账号卡/筛选/创建对话框）、console `ks-monitor-scan`、报表中心加快手两类
 - [ ] T5.2 视频号：仅本账号作品/数据（创作者助手拦截，加密媒体只记元数据）
 - [ ] T5.3 TikTok：**直接移植** creatorhub `platforms/tiktok/`（含 offline_sign 纯 Python 离线签名）+ 适配（2026-10-30 决策）；不做发布
-- [x] T5.4 报表中心（2026-10-30）：`modules/reports/`——六类 xlsx 导出（xhs/douyin 监控目标与作品、下载历史、账号清单，表头中文化、未装 openpyxl 优雅 400）；「数据报表→内容大盘」页替换为导出卡片（query token 直连下载）；189 项测试全绿（新增 2 项）
+- [x] T5.4 报表中心（2026-10-30）：`modules/reports/`——八类 xlsx 导出（xhs/douyin/ks 监控目标与作品、下载历史、账号清单，表头中文化、未装 openpyxl 优雅 400）；「数据报表→内容大盘」页替换为导出卡片（query token 直连下载）
+- T5.1 验收：196 项测试全绿（新增 7 项）；真实 Chrome 验证三平台监控页与报表页；快手真实数据待用户登录后人工确认。
 - 验收：每平台最小闭环（登录+采集列表+入库）。
 
 ### Phase 6 — 运营增强（可选）

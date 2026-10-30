@@ -3,9 +3,10 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { monitorApi, type XhsMonitor } from "@/api/monitor";
 import { douyinAccountApi, douyinMonitorApi, type DouyinAccountStatus, type DouyinMonitor } from "@/api/douyin";
+import { ksAccountApi, ksMonitorApi, type KsAccountStatus } from "@/api/ks";
 
 // 平台维度：xhs / douyin 共用本页
-type Platform = "xhs" | "douyin";
+type Platform = "xhs" | "douyin" | "ks";
 type AnyMonitor = (XhsMonitor | DouyinMonitor) & { platform: Platform };
 
 const platform = ref<Platform | "">("");
@@ -37,6 +38,16 @@ async function loadMonitors() {
         }),
       );
     }
+    if (platform.value === "" || platform.value === "ks") {
+      tasks.push(
+        ksMonitorApi.list().then((r) => {
+          monitors.value = [
+            ...monitors.value.filter((m) => m.platform !== "ks"),
+            ...r.monitors.map((m) => ({ ...m, platform: "ks" as Platform })),
+          ];
+        }),
+      );
+    }
     monitors.value = [];
     await Promise.all(tasks);
   } catch {
@@ -58,7 +69,7 @@ function scanStatusTag(status: string): { label: string; type: "success" | "dang
 }
 
 // ---- 行操作（按平台路由 API） ----
-const api = (p: Platform) => (p === "xhs" ? monitorApi : douyinMonitorApi);
+const api = (p: Platform) => (p === "xhs" ? monitorApi : p === "douyin" ? douyinMonitorApi : ksMonitorApi);
 
 async function scanNow(monitor: AnyMonitor) {
   scanningIds.value.push(monitor.id);
@@ -238,6 +249,84 @@ async function clearDouyinAccount() {
   await loadDouyinAccount();
 }
 
+
+// ---- 快手账号（T5.1） ----
+const ksAccount = ref<KsAccountStatus | null>(null);
+const ksCookieVisible = ref(false);
+const ksCookieInput = ref("");
+const ksCookieSaving = ref(false);
+const ksQrMessage = ref("");
+const ksQrPolling = ref<number | null>(null);
+
+async function loadKsAccount() {
+  try {
+    ksAccount.value = await ksAccountApi.status();
+  } catch {
+    ksAccount.value = null;
+  }
+}
+
+async function importKsCookie() {
+  if (!ksCookieInput.value.trim()) {
+    ElMessage.warning("请粘贴快手 Cookie（需含 userId 与 passToken）");
+    return;
+  }
+  ksCookieSaving.value = true;
+  try {
+    await ksAccountApi.importCookie(ksCookieInput.value.trim());
+    ElMessage.success("Cookie 已导入");
+    ksCookieVisible.value = false;
+    ksCookieInput.value = "";
+    await loadKsAccount();
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(detail || "导入失败");
+  } finally {
+    ksCookieSaving.value = false;
+  }
+}
+
+async function startKsQrLogin() {
+  try {
+    const started = await ksAccountApi.qrStart();
+    ksQrMessage.value = started.message;
+    ElMessage.info("已在本机打开浏览器，请在页面中登录快手");
+    if (ksQrPolling.value) window.clearInterval(ksQrPolling.value);
+    ksQrPolling.value = window.setInterval(async () => {
+      const state = await ksAccountApi.qrPoll(started.session_id);
+      ksQrMessage.value = state.message;
+      if (state.state === "logged_in") {
+        stopKsQrPolling();
+        ElMessage.success("登录成功，账号已保存");
+        await loadKsAccount();
+      } else if (["expired", "failed", "unknown"].includes(state.state)) {
+        stopKsQrPolling();
+      }
+    }, 3000);
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(detail || "无法启动扫码（未安装浏览器引擎？）");
+  }
+}
+
+function stopKsQrPolling() {
+  if (ksQrPolling.value) {
+    window.clearInterval(ksQrPolling.value);
+    ksQrPolling.value = null;
+  }
+}
+
+async function clearKsAccount() {
+  try {
+    await ElMessageBox.confirm("删除快手账号（Cookie 与登录态）？", "删除账号", { type: "warning" });
+  } catch {
+    return;
+  }
+  await ksAccountApi.clear();
+  ElMessage.success("已删除");
+  await loadKsAccount();
+}
+
 // ---- 作品记录（跨平台合并） ----
 const contents = ref<Record<string, unknown>[]>([]);
 const contentMonitor = ref<number | null>(null);
@@ -266,6 +355,13 @@ async function loadContents() {
           .then((r) => r.contents.map((c) => ({ ...c, platform: "douyin" }))),
       );
     }
+    if (platform.value === "" || platform.value === "ks") {
+      requests.push(
+        ksMonitorApi
+          .contents({ monitor_id: contentMonitor.value ?? undefined, page: 1, page_size: 100 })
+          .then((r) => r.contents.map((c) => ({ ...c, platform: "ks" }))),
+      );
+    }
     const merged = (await Promise.all(requests)).flat();
     merged.sort((a, b) => String(b.first_seen_at ?? "").localeCompare(String(a.first_seen_at ?? "")));
     contents.value = merged.slice(0, 100);
@@ -277,11 +373,14 @@ async function loadContents() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadMonitors(), loadContents(), loadDouyinAccount()]);
+  await Promise.all([loadMonitors(), loadContents(), loadDouyinAccount(), loadKsAccount()]);
 }
 
 onMounted(refreshAll);
-onUnmounted(stopQrPolling);
+onUnmounted(() => {
+  stopQrPolling();
+  stopKsQrPolling();
+});
 </script>
 
 <template>
@@ -313,6 +412,33 @@ onUnmounted(stopQrPolling);
       </p>
     </el-card>
 
+    <!-- 快手账号 -->
+    <el-card v-if="platform === '' || platform === 'ks'" shadow="never">
+      <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span class="font-bold">快手账号</span>
+            <span class="ml-3 text-xs text-slate-400">
+              {{ ksAccount?.configured
+                ? ksAccount.logged_in_guess ? "已配置 Cookie" : "Cookie 不完整"
+                : "未配置（监控扫描将无法读取）" }}
+              · 引擎 {{ ksAccount?.engine || "检测中" }}
+            </span>
+          </div>
+          <div class="flex gap-2">
+            <el-button size="small" @click="ksCookieVisible = true">粘贴 Cookie</el-button>
+            <el-button size="small" type="primary" @click="startKsQrLogin">浏览器扫码</el-button>
+            <el-button v-if="ksAccount?.configured" size="small" type="danger" plain @click="clearKsAccount">
+              删除
+            </el-button>
+          </div>
+        </div>
+      </template>
+      <p v-if="qrMessage" class="m-0 text-xs" :class="qrState === 'logged_in' ? 'text-emerald-600' : 'text-slate-500'">
+        {{ qrMessage }}
+      </p>
+    </el-card>
+
     <!-- 监控目标 -->
     <el-card shadow="never" v-loading="loading">
       <template #header>
@@ -323,6 +449,7 @@ onUnmounted(stopQrPolling);
               <el-radio-button value="">全部</el-radio-button>
               <el-radio-button value="xhs">小红书</el-radio-button>
               <el-radio-button value="douyin">抖音</el-radio-button>
+              <el-radio-button value="ks">快手</el-radio-button>
             </el-radio-group>
           </div>
           <div class="flex gap-2">
@@ -336,7 +463,7 @@ onUnmounted(stopQrPolling);
         <el-table-column label="平台" width="90">
           <template #default="{ row }">
             <el-tag size="small" :type="row.platform === 'xhs' ? 'danger' : 'primary'" effect="plain">
-              {{ row.platform === "xhs" ? "小红书" : "抖音" }}
+              {{ row.platform === "xhs" ? "小红书" : row.platform === "douyin" ? "抖音" : "快手" }}
             </el-tag>
           </template>
         </el-table-column>
@@ -412,7 +539,7 @@ onUnmounted(stopQrPolling);
         <el-table-column label="平台" width="85">
           <template #default="{ row }">
             <el-tag size="small" :type="row.platform === 'xhs' ? 'danger' : 'primary'" effect="plain">
-              {{ row.platform === "xhs" ? "小红书" : "抖音" }}
+              {{ row.platform === "xhs" ? "小红书" : row.platform === "douyin" ? "抖音" : "快手" }}
             </el-tag>
           </template>
         </el-table-column>
@@ -449,6 +576,7 @@ onUnmounted(stopQrPolling);
           <el-radio-group v-model="form.platform">
             <el-radio value="xhs">小红书</el-radio>
             <el-radio value="douyin">抖音</el-radio>
+            <el-radio value="ks">快手</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="监控类型">
@@ -464,7 +592,9 @@ onUnmounted(stopQrPolling);
               form.kind === 'creator'
                 ? form.platform === 'xhs'
                   ? 'https://www.xiaohongshu.com/user/profile/xxx?xsec_token=...'
-                  : 'https://www.douyin.com/user/MS4Wxxx 或裸 sec_uid'
+                  : form.platform === 'douyin'
+                    ? 'https://www.douyin.com/user/MS4Wxxx 或裸 sec_uid'
+                    : 'https://www.kuaishou.com/profile/xxx 或裸用户 ID'
                 : '如：收纳教程'
             "
           />
@@ -490,6 +620,20 @@ onUnmounted(stopQrPolling);
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
         <el-button type="primary" :loading="creating" @click="submitCreate">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 快手 Cookie 导入弹窗 -->
+    <el-dialog v-model="ksCookieVisible" title="导入快手 Cookie" width="560px">
+      <el-input
+        v-model="ksCookieInput"
+        type="textarea"
+        :rows="6"
+        placeholder="从已登录快手的浏览器复制完整 Cookie（必须包含 userId 与 passToken）"
+      />
+      <template #footer>
+        <el-button @click="ksCookieVisible = false">取消</el-button>
+        <el-button type="primary" :loading="ksCookieSaving" @click="importKsCookie">导入</el-button>
       </template>
     </el-dialog>
 

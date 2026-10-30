@@ -18,6 +18,8 @@
   fp_douyin_publish_tasks  抖音发布队列（草稿→待发→发布中→完成/失败）
   fp_xhs_dm_rules          小红书私信自动回复规则（关键词→回复模板）
   fp_xhs_dm_drafts         小红书私信建议回复草稿（人工审核）
+  fp_ks_monitors           快手作品监控目标（创作者主页 / 关键词）
+  fp_ks_contents           快手监控作品记录（photo_id 全局去重）
 """
 
 from __future__ import annotations
@@ -298,6 +300,56 @@ class DouyinContentRow(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     monitor_id: Mapped[int | None] = mapped_column(Integer)
     aweme_id: Mapped[str] = mapped_column(String(64))
+    title: Mapped[str] = mapped_column(Text, default="")
+    author: Mapped[str] = mapped_column(String(255), default="")
+    author_id: Mapped[str] = mapped_column(String(128), default="")
+    url: Mapped[str] = mapped_column(Text, default="")
+    cover: Mapped[str] = mapped_column(Text, default="")
+    media_type: Mapped[str] = mapped_column(String(16), default="")  # video | image
+    liked_count: Mapped[str] = mapped_column(String(32), default="")
+    create_time: Mapped[int] = mapped_column(BigInteger, default=0)  # 作品发布时间戳（秒）
+    extra: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+    notified: Mapped[bool] = mapped_column(Boolean, default=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class KsMonitorRow(Base):
+    """快手作品监控目标：kind=creator 按创作者主页增量；kind=keyword 按关键词搜索增量。"""
+
+    __tablename__ = "fp_ks_monitors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(16), default="keyword")  # creator | keyword
+    target: Mapped[str] = mapped_column(Text, default="")  # creator: sec_uid 或主页 URL；keyword: 关键词
+    name: Mapped[str] = mapped_column(String(255), default="")
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    include_keywords: Mapped[str] = mapped_column(Text, default="")
+    exclude_keywords: Mapped[str] = mapped_column(Text, default="")
+    backfill_count: Mapped[int] = mapped_column(Integer, default=10)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active | paused
+    last_scan_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_scan_status: Mapped[str] = mapped_column(String(16), default="never")  # never|ok|error
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class KsContentRow(Base):
+    """快手监控作品记录：photo_id 全局唯一（跨监控去重）。"""
+
+    __tablename__ = "fp_ks_contents"
+    __table_args__ = (
+        Index("ix_fp_ks_contents_monitor_seen", "monitor_id", "first_seen_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    monitor_id: Mapped[int | None] = mapped_column(Integer)
+    photo_id: Mapped[str] = mapped_column(String(64))
     title: Mapped[str] = mapped_column(Text, default="")
     author: Mapped[str] = mapped_column(String(255), default="")
     author_id: Mapped[str] = mapped_column(String(128), default="")

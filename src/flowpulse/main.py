@@ -15,7 +15,13 @@ from flowpulse.modules.douyin.monitoring import (
 )
 from flowpulse.modules.douyin.monitoring import router as douyin_router
 from flowpulse.modules.douyin.publish import get_douyin_publish_service
+from flowpulse.modules.ks.monitoring import (
+    get_ks_account_service,
+    get_ks_monitor_scheduler,
+    get_ks_monitor_service,
+)
 from flowpulse.modules.douyin.publish import router as douyin_publish_router
+from flowpulse.modules.ks.monitoring import router as ks_router
 from flowpulse.modules.downloader import get_download_service
 from flowpulse.modules.downloader import router as downloads_router
 from flowpulse.modules.menu import get_menu_repository
@@ -66,8 +72,10 @@ def create_app() -> FastAPI:
         runtime.xhs_monitor_scheduler.start()
         runtime.douyin_monitor_scheduler.start()
         runtime.douyin_publish_service.start()
+        runtime.ks_monitor_scheduler.start()
         yield
         await runtime.douyin_publish_service.stop()
+        await runtime.ks_monitor_scheduler.stop()
         await runtime.douyin_monitor_scheduler.stop()
         await runtime.xhs_monitor_scheduler.stop()
         await runtime.weread_scheduler.stop()
@@ -93,6 +101,7 @@ def create_app() -> FastAPI:
     app.include_router(douyin_publish_router, dependencies=[Depends(require_auth)])
     app.include_router(downloads_router, dependencies=[Depends(require_auth)])
     app.include_router(reports_router, dependencies=[Depends(require_auth)])
+    app.include_router(ks_router, dependencies=[Depends(require_auth)])
     app.include_router(weread_router, dependencies=[Depends(require_auth)])
     app.include_router(menu_router, dependencies=[Depends(require_auth)])
     app.include_router(notify_router, dependencies=[Depends(require_auth)])
@@ -123,6 +132,9 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_dm_service] = lambda: runtime.xhs_dm_service
     app.dependency_overrides[get_dm_rule_store] = lambda: runtime.xhs_dm_rule_store
     app.dependency_overrides[get_reports_service] = lambda: runtime.reports_service
+    app.dependency_overrides[get_ks_account_service] = lambda: runtime.ks_account_service
+    app.dependency_overrides[get_ks_monitor_service] = lambda: runtime.ks_monitor_service
+    app.dependency_overrides[get_ks_monitor_scheduler] = lambda: runtime.ks_monitor_scheduler
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service

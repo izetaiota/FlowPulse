@@ -85,6 +85,11 @@ class Settings(BaseSettings):
     # 抖音发布队列 worker 总开关（发布执行始终有头，风控验证需人工）
     douyin_publish_enabled: bool = True
 
+    # --- 快手平台（P5-T5.1）---
+    ks_monitor_enabled: bool = True
+    ks_monitor_tick_seconds: int = 60
+    ks_browser_headless: bool = True
+
     # --- 写操作风控闸（P4）---
     risk_enabled: bool = True
     # 单账号小时/日写操作配额（0 = 不限）
