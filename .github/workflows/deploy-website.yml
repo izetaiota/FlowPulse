@@ -40,3 +40,12 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # IndexNow：部署后主动通知 Bing / Yandex 等引擎抓取（密钥文件随 website/ 一起部署）
+      - name: Ping IndexNow
+        run: |
+          sleep 10
+          curl -sS -X POST "https://api.indexnow.org/indexnow" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d '{"host":"izetaiota.github.io","key":"4e4c265baa174178364a5a65b02bc425","keyLocation":"https://izetaiota.github.io/FlowPulse/4e4c265baa174178364a5a65b02bc425.txt","urlList":["https://izetaiota.github.io/FlowPulse/"]}' \
+            -o /dev/null -w "IndexNow HTTP %{http_code}\n"
