@@ -1,0 +1,173 @@
+# CreatorHub 功能迁移实施计划
+
+> 目标：把 [creatorhub](https://github.com/3441293738/creatorhub)（多平台内容管理工作台，支持抖音/小红书/快手/视频号/TikTok 的账号管理、采集监控、下载、发布、私信）的能力**分阶段移植进 FlowPulse**。
+> 本地参考副本：`D:\www\www_py\creatorhub`（v0.2.6，后端约 4 万行）。
+> 状态：计划阶段，未开工。
+
+---
+
+## 0. 结论先行
+
+- **迁移方式（2026-10-30 已决策）：直接沿用 creatorhub 原有功能代码**，适配进 FlowPulse 的模块架构；为此 **FlowPulse 已去除 MIT 协议、改为无协议专有模式**（LICENSE 已删除）。风险与义务见 §1。
+- creatorhub 的核心价值不在某个单一功能，而在四件资产：**① 平台×操作×通道（API/浏览器/混合）的能力矩阵与分流模式；② 多账号浏览器会话体系（Profile 隔离/指纹/代理/常驻复用）；③ 三套平台签名直连客户端（抖音 a_bogus、小红书 xhshow+Node、TikTok 纯离线）；④ 写操作风控闸**。迁移按这四条主线 + 功能切片推进。
+- 建议节奏：先建基础设施（统一账号中心 + 浏览器会话层 + 通用任务引擎），再按"小红书 → 抖音 → 其余平台"逐平台补功能。FlowPulse 前端已预留 accounts/messages/materials/publish/reports 等占位页，正好逐一填坑。
+- 预计总量：**6 个阶段、约 40+ 个任务**，P0–P1 完成后即可获得"多账号小红书监控采集"的可用闭环。
+
+---
+
+## 1. 协议与合规（2026-10-30 决策记录）
+
+| 项 | 情况 |
+|---|---|
+| creatorhub | **无 LICENSE 文件、无任何协议声明** → 法律上默认"保留所有权利"，授权只能来自其作者 |
+| FlowPulse | 原为 MIT 公开仓库；**本项目已按决策去除 MIT、删除 LICENSE，改为无协议专有模式**（README License 段、登录页脚已同步更新） |
+
+**已执行的决策**：迁移直接沿用 creatorhub 功能代码。同时必须知悉并接受以下风险：
+
+- 去掉 FlowPulse 自己的 MIT **并不能反向获得**复制 creatorhub 代码的授权——未经其作者许可的复制在法律上仍是侵权，这一点与本项目用什么协议无关。
+- **仓库保持公开 = 分发行为，风险最高**。强烈建议：① 把 GitHub 仓库转为私有；② 有渠道时联系 creatorhub 作者取得书面授权。
+- 个人本地使用、不分发的前提下实际风险相对可控，但性质不变，请自行权衡。
+- 上游义务不因本项目改协议而消失：weread 模块沿用 rachelos/we-mp-rss（MIT，其版权声明须保留）；xhs 模块 vendored 自 cv-cat/Spider_XHS（无协议、仅供学习，README 已有警示）。
+- 建议在直接沿用代码的模块内保留来源注释（`# ported from creatorhub`），便于后续溯源与替换。
+
+---
+
+## 2. 现状与差距矩阵
+
+| 功能域 | creatorhub | FlowPulse 现状 | 差距 | 迁移价值 |
+|---|---|---|---|---|
+| 多平台账号中心 | 5 平台统一账号表、扫码/Cookie 登录、体检、重登 | 各模块独立凭证（weread/xhs 各一套） | 无统一账号层 | ★★★ 基础 |
+| 浏览器自动化 | patchright + 系统Chrome CDP + 指纹/代理/Profile 隔离、常驻会话 | 仅 weread 扫码/xhs 走 vendored spider（无浏览器） | 无通用浏览器层 | ★★★ 基础 |
+| 采集任务 | 关键词/创作者/收藏夹一次性批量采集 | xhs 已有 search/notes/users 快数据 + jobs 框架 | 缺监控型/批量型任务编排 | ★★★ |
+| 作品/评论/弹幕监控 | 定时增量扫描、去重基线、回填 | 无 | 全缺 | ★★★ |
+| 媒体下载 | 断点续传、画质选择、图集/视频 | xhs jobs 已有下载导出 | 部分有 | ★★ |
+| 通用链接下载 | yt-dlp（抖音/B站/YouTube…） | 抖音分享解析仅服务转写 | 无通用下载 | ★★★ 低成本 |
+| 发布 | 抖音/小红书/快手/视频号（浏览器自动化+API） | xhs creator 发布链已有 | 缺抖音/快手/视频号 | ★★ |
+| 私信/自动回复 | 抖音 WS+protobuf、小红书页面观察 | 无 | 全缺 | ★★ 高成本 |
+| 自动评论/账号动作 | 规则+审核流+写队列 | 无 | 全缺 | ★ |
+| 风控中心 | 风险等级/冷却/配额/安静时段 | 无 | 全缺 | ★★（多账号后必要） |
+| 通知 | Bark/钉钉/TG + Webhook outbox | Webhook 渠道 + 页面管理 ✅ | 缺 Bark/TG 渠道、webhook outbox | ★ 顺手补 |
+| 报表导出 | 7 种 Excel | 无 | 全缺 | ★ 低成本 |
+| 快手/视频号/TikTok | 各有采集/监控 | 无 | 全缺 | ★★ 后置 |
+| 桌面端打包 | pywebview+PyInstaller+自动更新 | Docker/源码部署 | — | 不迁移（FlowPulse 定位 Web 自托管） |
+
+---
+
+## 3. 架构映射（creatorhub 概念 → FlowPulse 落点）
+
+| creatorhub | FlowPulse 对应 | 说明 |
+|---|---|---|
+| `MonitorEngine` 巨型调度器 | lifespan 常驻调度器（weread_scheduler 模式）+ `runtime.py` 装配 + console `run_once()` | 不搬引擎类，按功能切片做**每域一个轻量调度器**，复用现有模式 |
+| `transport_matrix`（平台×操作×通道分流） | `config.py` Settings 开关 + `/api/v1/capabilities` 报告 | 保留"能力矩阵 + 运行时 resolve"思想，实现为纯函数模块 `modules/platforms/transport.py` |
+| `DouyinAccount` 多平台账号表 | 新表 `fp_accounts`（+ 凭证迁移），Alembic 0007 起 | 双模式仓储（PG/JSON），对接 `core/crypto.CredentialCipher`；多用户走已定稿的 RBAC 方案（0004 预留） |
+| `BrowserManager`/`Identity`/Profile | 新模块 `modules/browser/`：patchright 可选依赖、Profile 目录隔离、登录驱动状态机 | 参照现有 `xhs/integration/login_drivers.py` 的 start→poll→verify 模式推广 |
+| 平台签名客户端 | 每平台 `modules/<platform>/client.py`（**直接移植 creatorhub 代码 + 适配**，含签名 JS bundle） | xhs 侧优先沿用本项目已有 vendored spider；抖音 a_bogus/TikTok 离线签名等直接移植（来源注释） |
+| 风控闸 `risk.py` | `modules/platforms/risk.py` + 账号表风控字段 | P4 再做，先在写操作里埋点 |
+| 前端单页巨型 app.js | Vue3 工作台页面（凭证卡+Tabs+表格+抽屉模板） | 复用 weread/xhs 页面版式；占位页逐一替换 |
+
+新模块一律遵循本项目已验证的移植套路（模块骨架/四件套/runtime 装配/双模式仓储/菜单注册/测试，见 xhs 与 weread 先例）。
+
+---
+
+## 4. 分阶段执行计划
+
+### Phase 0 — 基础设施：统一账号中心 + 任务引擎（先行，其余都依赖它）
+
+- [ ] T0.1 `fp_accounts` 表 + Alembic 迁移 + 双模式仓储（平台/账号名/加密凭证/storage_state/状态/体检时间/风控字段预留）
+- [ ] T0.2 账号中心 API（`/api/v1/accounts`：CRUD、状态、体检、删除）+ 前端替换 accounts 占位页（凭证卡模板复用，平台筛选）
+- [ ] T0.3 现有 weread/xhs 凭证**收编进统一账号列表**（2026-10-30 决策）：迁移脚本把两模块存量凭证写入 `fp_accounts`，模块仓储改为读写统一账号表，账号中心一个列表展示全部平台账号
+- [ ] T0.4 通用任务视图：把 xhs jobs + transcribe tasks 抽象成统一队列接口（`/api/v1/tasks` 已有雏形，补 list/cancel/重试语义），前端填 queue 概念（消息中心占位页可先用任务动态）
+- [ ] T0.5 引入 `patchright`（optional 依赖组 `browser`），`modules/browser/` 骨架：每账号 Profile 目录分配、上下文 LRU 回收、登录驱动状态机接口
+- 验收：新增一个平台账号（粘贴 Cookie）→ 账号页可见 → 定时体检状态灯亮；现有两模块不受影响；测试覆盖双模式仓储。
+
+### Phase 1 — 小红书监控与批量采集（复用已有 spider，最快形成闭环）
+
+- [ ] T1.1 `fp_xhs_monitors`（监控目标：创作者/关键词，interval、回填条数、包含/排除词）+ 调度器（订阅级周期模式复用 weread）
+- [ ] T1.2 增量扫描逻辑：首扫基线 + 新作品去重 + 回填策略（自研，参考"确定性抖动"思想避免重启风暴）
+- [ ] T1.3 `fp_xhs_contents/comments` 记录表 + 前端"作品监控"页（监控目标管理 + 作品记录表 + 新作品通知推送走现有 notify）
+- [ ] T1.4 批量采集任务升级：关键词/创作者批量 job（现有 jobs 框架扩 source_type）、结果分页、Excel 导出（openpyxl）
+- [ ] T1.5 新作品/评论监控接入通知渠道 + RSS 输出（复用 weread 的 RSS 生成思路，可选）
+- 验收：添加一个博主监控 → 定时扫描发现新笔记入库 → Webhook 收到推送 → Excel 可导出。
+
+### Phase 2 — 通用链接下载 + 素材库（低成本高感知）
+
+- [ ] T2.1 `yt-dlp` optional 依赖 + `modules/downloader/`：分享文案解析抽链、任务化下载、历史记录
+- [ ] T2.2 前端"链接下载"卡片（粘贴文案 → 解析列表 → 下载）+ materials 占位页改为媒体库（目录浏览/预览/删除）
+- [ ] T2.3 与转写管线打通：下载产物可一键提交转写
+- 验收：粘贴抖音/B站分享文案 → 解析并下载到 media 目录 → 素材库可见 → 提交转写成功。
+
+### Phase 3 — 抖音平台（浏览器模式先行，API 签名后评估）
+
+- [ ] T3.1 抖音账号接入：`modules/douyin/account/`（扫码登录走浏览器层、storage_state 入库、Cookie 导入）
+- [ ] T3.2 浏览器拦截式读取：作品列表/评论/搜索（patchright 页面拦截 XHR，自研实现）——不做签名直连，规避 a_bogus 重写风险
+- [ ] T3.3 抖音作品/评论监控 + 采集任务（复用 P1 的监控框架，平台化抽象 `modules/platforms/monitor_core.py`）
+- [ ] T3.4 抖音发布（浏览器自动化创作中心，仅 browser 模式）+ publish 占位页第一版（草稿/队列/状态）
+- [ ] T3.5 抖音 API 直连签名：a_bogus/ms_token 等**直接移植** creatorhub `platforms/douyin/signing/`（P3 内可选做，为"纯浏览器先行"提供加速通道）
+- 验收：抖音扫码登录 → 监控某博主 → 新作品入库可下载 → 一条测试内容走发布队列（人工确认步骤）。
+
+### Phase 4 — 私信与写操作风控（xhs 先、抖音后）
+
+- [ ] T4.1 小红书私信：会话/消息同步（浏览器只读观察）+ messages 占位页会话列表
+- [ ] T4.2 自动回复规则 + 人工审核队列（对接 T0.4 任务视图）
+- [ ] T4.3 写操作风控闸：每账号日/时配额、失败冷却、安静时段（`modules/platforms/risk.py`，账号表风控字段启用）
+- [ ] T4.4 抖音私信（frontier WS + protobuf 解析**直接移植** creatorhub 实现，风险由移植大幅降低；仍排最后，可降级为会话列表同步）
+- 验收：小红书私信列表可读、自动回复在配额内触发且可暂停；风控触发后账号进入冷却并在账号中心可见。
+
+### Phase 5 — 快手 / 视频号 / TikTok（独立增量，按需启动）
+
+- [ ] T5.1 快手：浏览器模式账号/采集/监控（纯浏览器平台，无签名负担）
+- [ ] T5.2 视频号：仅本账号作品/数据（创作者助手拦截，加密媒体只记元数据）
+- [ ] T5.3 TikTok：**直接移植** creatorhub `platforms/tiktok/`（含 offline_sign 纯 Python 离线签名）+ 适配（2026-10-30 决策）；不做发布
+- [ ] T5.4 报表中心：reports 占位页 + 内容/评论/监控多维度 Excel 导出
+- 验收：每平台最小闭环（登录+采集列表+入库）。
+
+### Phase 6 — 运营增强（可选）
+
+- [ ] T6.1 Webhook 事件中心（outbox + HMAC 签名 + 重试，事件：新作品/风控/任务完成）
+- [ ] T6.2 通知渠道补 Bark/Telegram（现有 notify 框架加渠道类型）
+- [ ] T6.3 代理池管理（多账号隔离时才需要）
+- [ ] T6.4 自动评论/账号动作（关注/取关）写队列——**暂不处理**（2026-10-30 决策，风控与合规敏感；后续要做得显式立项）
+
+---
+
+## 5. 依赖与工程配套（随阶段带入）
+
+- `pyproject.toml` 新 optional 组：`browser`（patchright）、`download`（yt-dlp、imageio-ffmpeg）、`report`（openpyxl）
+- Dockerfile：`browser` 组需要 Chromium 与中文字体（镜像显著变大，建议独立 `flowpulse-full` 变体或 compose profile）；`download` 组补 ffmpeg（已有）
+- 数据约定：浏览器 Profile、媒体文件一律落 `data/`（PG 模式也只把元数据入库，二进制走文件系统），与现有 weread 文章缓存一致
+- 测试：每模块 `tests/<module>/`，浏览器边界全部 mock（参考 creatorhub 的 no_real_browser 思路：未 mock 的浏览器调用 = 测试失败）；监控调度用假时钟测去重/回填
+- 每阶段一个 PR 或一组小 PR，遵循现有提交风格（`feat:中文描述`）
+
+---
+
+## 6. 风险与决策点
+
+**风险**
+- R1 协议（§1）：已决策直接沿用代码 + 本项目改无协议模式；剩余动作=建议仓库转私有、争取原作者授权，并对沿用代码做来源标注。
+- R2 平台风控时效：签名/接口随时失效；浏览器模式稳健但重。策略：抖音先纯浏览器（已决策），签名移植作为加速通道。
+- R3 重量级浏览器栈与 FlowPulse 轻量部署冲突：patchright + Chromium 让镜像/内存翻倍。用 optional 组 + compose profile 隔离，核心功能不依赖浏览器。
+- R4 双模式存储一致性：浏览器 Profile/媒体是文件资产，PG 模式下多实例部署会踩坑。约定单实例运行，文档写明。
+- R5 抖音私信 WS/protobuf、TikTok 签名经"直接移植"决策后风险显著下降，但仍受上游代码质量与平台协议变化影响。
+
+**决策点（2026-10-30 已全部拍板）**
+- D1 浏览器内核：**patchright**，可配置回退官方 playwright。✅
+- D2 抖音读取路线：**先纯浏览器拦截**，签名直连作为后续加速。✅
+- D3 现有 weread/xhs 凭证：**收编统一账号列表**（见 T0.3）。✅
+- D4 沿用方式/TikTok：**直接沿用 creatorhub 原有功能代码**（含 TikTok 模块整体移植），本项目去 MIT 改无协议模式（已执行）。✅
+- D5 自动评论/关注类写操作：**暂不处理**（见 T6.4 标注）。✅
+
+---
+
+## 7. 工作量粗估（按阶段）
+
+| 阶段 | 规模 | 说明 |
+|---|---|---|
+| P0 基础设施 | 中 | 表+仓储+浏览器骨架，约 8–10 个任务单元 |
+| P1 小红书监控采集 | 中 | 复用 spider，主要是编排与前端 |
+| P2 链接下载+素材库 | 小 | yt-dlp 封装为主 |
+| P3 抖音 | 大 | 浏览器拦截+发布自动化 |
+| P4 私信+风控 | 大 | 抖音私信最大风险点 |
+| P5 其余平台 | 按平台增量 | 快手/视频号中等，TikTok 视决策 |
+| P6 运营增强 | 小 | 独立可插 |
+
+建议每阶段结束做一次回归（pytest 全绿 + 手工冒烟：登录→采集→下载→通知）。
