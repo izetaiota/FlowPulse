@@ -72,7 +72,7 @@ def test_reports_api(tmp_path: Path, monkeypatch):
         app.dependency_overrides[get_reports_service] = lambda: service
 
         catalog = client.get("/api/v1/reports").json()["reports"]
-        assert len(catalog) == 8
+        assert len(catalog) == 10
 
         resp = client.get("/api/v1/reports/xhs-contents.xlsx")
         assert resp.status_code == 200

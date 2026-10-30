@@ -19,6 +19,7 @@ def test_task_registry_complete() -> None:
         "xhs-monitor-scan",
         "douyin-monitor-scan",
         "ks-monitor-scan",
+        "tiktok-monitor-scan",
     }
     for spec in tasks.TASKS.values():
         assert spec.help  # help 文案非空，list 命令才有意义

@@ -78,6 +78,12 @@ async def ks_monitor_scan(rt: Runtime) -> dict:
     return {**result, "ok": result.get("errors", 0) == 0}
 
 
+async def tiktok_monitor_scan(rt: Runtime) -> dict:
+    """TikTok 关键词监控：扫描全部到期目标一次（原生签名直连）。"""
+    result = await rt.tiktok_monitor_scheduler.run_once()
+    return {**result, "ok": result.get("errors", 0) == 0}
+
+
 TASKS: dict[str, TaskSpec] = {
     spec.name: spec
     for spec in (
@@ -90,6 +96,7 @@ TASKS: dict[str, TaskSpec] = {
         TaskSpec("xhs-monitor-scan", "小红书：作品监控到期目标扫描一次", xhs_monitor_scan),
         TaskSpec("douyin-monitor-scan", "抖音：作品监控到期目标扫描一次", douyin_monitor_scan),
         TaskSpec("ks-monitor-scan", "快手：作品监控到期目标扫描一次", ks_monitor_scan),
+        TaskSpec("tiktok-monitor-scan", "TikTok：关键词监控到期目标扫描一次", tiktok_monitor_scan),
     )
 }
 

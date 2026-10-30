@@ -4,9 +4,10 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { monitorApi, type XhsMonitor } from "@/api/monitor";
 import { douyinAccountApi, douyinMonitorApi, type DouyinAccountStatus, type DouyinMonitor } from "@/api/douyin";
 import { ksAccountApi, ksMonitorApi, type KsAccountStatus } from "@/api/ks";
+import { tiktokApi, type TiktokAccountStatus } from "@/api/tiktok";
 
 // 平台维度：xhs / douyin 共用本页
-type Platform = "xhs" | "douyin" | "ks";
+type Platform = "xhs" | "douyin" | "ks" | "tiktok";
 type AnyMonitor = (XhsMonitor | DouyinMonitor) & { platform: Platform };
 
 const platform = ref<Platform | "">("");
@@ -48,6 +49,16 @@ async function loadMonitors() {
         }),
       );
     }
+    if (platform.value === "" || platform.value === "tiktok") {
+      tasks.push(
+        tiktokApi.list().then((r) => {
+          monitors.value = [
+            ...monitors.value.filter((m) => m.platform !== "tiktok"),
+            ...r.monitors.map((m) => ({ ...m, platform: "tiktok" as Platform })),
+          ];
+        }),
+      );
+    }
     monitors.value = [];
     await Promise.all(tasks);
   } catch {
@@ -69,7 +80,8 @@ function scanStatusTag(status: string): { label: string; type: "success" | "dang
 }
 
 // ---- 行操作（按平台路由 API） ----
-const api = (p: Platform) => (p === "xhs" ? monitorApi : p === "douyin" ? douyinMonitorApi : ksMonitorApi);
+const api = (p: Platform) =>
+  p === "xhs" ? monitorApi : p === "douyin" ? douyinMonitorApi : p === "ks" ? ksMonitorApi : tiktokApi;
 
 async function scanNow(monitor: AnyMonitor) {
   scanningIds.value.push(monitor.id);
@@ -155,7 +167,11 @@ async function submitCreate() {
   }
   creating.value = true;
   try {
-    await api(form.value.platform).create({ ...form.value, target });
+    const payload =
+      form.value.platform === "tiktok"
+        ? { ...form.value, kind: "keyword" as const, target }
+        : { ...form.value, target };
+    await api(form.value.platform).create(payload);
     ElMessage.success("监控目标已创建，首次扫描将只入库基线不推送");
     createVisible.value = false;
     await Promise.all([loadMonitors(), loadContents()]);
@@ -327,6 +343,52 @@ async function clearKsAccount() {
   await loadKsAccount();
 }
 
+
+// ---- TikTok 账号（T5.3，仅 Cookie 导入） ----
+const tiktokAccount = ref<TiktokAccountStatus | null>(null);
+const tiktokCookieVisible = ref(false);
+const tiktokCookieInput = ref("");
+const tiktokCookieSaving = ref(false);
+
+async function loadTiktokAccount() {
+  try {
+    tiktokAccount.value = await tiktokApi.accountStatus();
+  } catch {
+    tiktokAccount.value = null;
+  }
+}
+
+async function importTiktokCookie() {
+  if (!tiktokCookieInput.value.trim()) {
+    ElMessage.warning("请粘贴 TikTok Cookie（含 sessionid 更稳）");
+    return;
+  }
+  tiktokCookieSaving.value = true;
+  try {
+    await tiktokApi.importCookie(tiktokCookieInput.value.trim());
+    ElMessage.success("Cookie 已导入");
+    tiktokCookieVisible.value = false;
+    tiktokCookieInput.value = "";
+    await loadTiktokAccount();
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(detail || "导入失败");
+  } finally {
+    tiktokCookieSaving.value = false;
+  }
+}
+
+async function clearTiktokAccount() {
+  try {
+    await ElMessageBox.confirm("删除 TikTok 账号（Cookie）？", "删除账号", { type: "warning" });
+  } catch {
+    return;
+  }
+  await tiktokApi.clearAccount();
+  ElMessage.success("已删除");
+  await loadTiktokAccount();
+}
+
 // ---- 作品记录（跨平台合并） ----
 const contents = ref<Record<string, unknown>[]>([]);
 const contentMonitor = ref<number | null>(null);
@@ -362,6 +424,13 @@ async function loadContents() {
           .then((r) => r.contents.map((c) => ({ ...c, platform: "ks" }))),
       );
     }
+    if (platform.value === "" || platform.value === "tiktok") {
+      requests.push(
+        tiktokApi
+          .contents({ monitor_id: contentMonitor.value ?? undefined, page: 1, page_size: 100 })
+          .then((r) => r.contents.map((c) => ({ ...c, platform: "tiktok" }))),
+      );
+    }
     const merged = (await Promise.all(requests)).flat();
     merged.sort((a, b) => String(b.first_seen_at ?? "").localeCompare(String(a.first_seen_at ?? "")));
     contents.value = merged.slice(0, 100);
@@ -373,7 +442,13 @@ async function loadContents() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadMonitors(), loadContents(), loadDouyinAccount(), loadKsAccount()]);
+  await Promise.all([
+    loadMonitors(),
+    loadContents(),
+    loadDouyinAccount(),
+    loadKsAccount(),
+    loadTiktokAccount(),
+  ]);
 }
 
 onMounted(refreshAll);
@@ -439,6 +514,31 @@ onUnmounted(() => {
       </p>
     </el-card>
 
+    <!-- TikTok 账号 -->
+    <el-card v-if="platform === '' || platform === 'tiktok'" shadow="never">
+      <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span class="font-bold">TikTok 账号</span>
+            <span class="ml-3 text-xs text-slate-400">
+              {{ tiktokAccount?.configured
+                ? tiktokAccount.logged_in_guess ? "已配置 Cookie" : "Cookie 不完整"
+                : "未配置（监控扫描将无法读取）" }}
+              
+            </span>
+          </div>
+          <div class="flex gap-2">
+            <el-button size="small" @click="tiktokCookieVisible = true">粘贴 Cookie</el-button>
+            <el-button v-if="tiktokAccount?.configured" size="small" type="danger" plain @click="clearTiktokAccount">
+              删除
+            </el-button>
+          </div>
+        </div>
+      </template>
+      <p v-if="qrMessage" class="m-0 text-xs" :class="qrState === 'logged_in' ? 'text-emerald-600' : 'text-slate-500'">
+        {{ qrMessage }}
+      </p>
+    </el-card>
     <!-- 监控目标 -->
     <el-card shadow="never" v-loading="loading">
       <template #header>
@@ -450,6 +550,7 @@ onUnmounted(() => {
               <el-radio-button value="xhs">小红书</el-radio-button>
               <el-radio-button value="douyin">抖音</el-radio-button>
               <el-radio-button value="ks">快手</el-radio-button>
+              <el-radio-button value="tiktok">TikTok</el-radio-button>
             </el-radio-group>
           </div>
           <div class="flex gap-2">
@@ -463,7 +564,7 @@ onUnmounted(() => {
         <el-table-column label="平台" width="90">
           <template #default="{ row }">
             <el-tag size="small" :type="row.platform === 'xhs' ? 'danger' : 'primary'" effect="plain">
-              {{ row.platform === "xhs" ? "小红书" : row.platform === "douyin" ? "抖音" : "快手" }}
+              {{ row.platform === "xhs" ? "小红书" : row.platform === "douyin" ? "抖音" : row.platform === "ks" ? "快手" : "TikTok" }}
             </el-tag>
           </template>
         </el-table-column>
@@ -539,7 +640,7 @@ onUnmounted(() => {
         <el-table-column label="平台" width="85">
           <template #default="{ row }">
             <el-tag size="small" :type="row.platform === 'xhs' ? 'danger' : 'primary'" effect="plain">
-              {{ row.platform === "xhs" ? "小红书" : row.platform === "douyin" ? "抖音" : "快手" }}
+              {{ row.platform === "xhs" ? "小红书" : row.platform === "douyin" ? "抖音" : row.platform === "ks" ? "快手" : "TikTok" }}
             </el-tag>
           </template>
         </el-table-column>
@@ -577,13 +678,15 @@ onUnmounted(() => {
             <el-radio value="xhs">小红书</el-radio>
             <el-radio value="douyin">抖音</el-radio>
             <el-radio value="ks">快手</el-radio>
+            <el-radio value="tiktok">TikTok</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="监控类型">
           <el-radio-group v-model="form.kind">
             <el-radio value="keyword">关键词搜索</el-radio>
-            <el-radio value="creator">创作者主页</el-radio>
+            <el-radio v-if="form.platform !== 'tiktok'" value="creator">创作者主页</el-radio>
           </el-radio-group>
+          <span v-if="form.platform === 'tiktok'" class="ml-2 text-xs text-slate-400">TikTok 仅关键词</span>
         </el-form-item>
         <el-form-item :label="form.kind === 'creator' ? '主页链接' : '关键词'">
           <el-input
@@ -594,7 +697,9 @@ onUnmounted(() => {
                   ? 'https://www.xiaohongshu.com/user/profile/xxx?xsec_token=...'
                   : form.platform === 'douyin'
                     ? 'https://www.douyin.com/user/MS4Wxxx 或裸 sec_uid'
-                    : 'https://www.kuaishou.com/profile/xxx 或裸用户 ID'
+                    : form.platform === 'ks'
+                      ? 'https://www.kuaishou.com/profile/xxx 或裸用户 ID'
+                      : '如：cooking tips'
                 : '如：收纳教程'
             "
           />
@@ -620,6 +725,20 @@ onUnmounted(() => {
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
         <el-button type="primary" :loading="creating" @click="submitCreate">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- TikTok Cookie 导入弹窗 -->
+    <el-dialog v-model="tiktokCookieVisible" title="导入 TikTok Cookie" width="560px">
+      <el-input
+        v-model="tiktokCookieInput"
+        type="textarea"
+        :rows="6"
+        placeholder="从已登录 TikTok 的浏览器复制完整 Cookie（建议包含 sessionid）"
+      />
+      <template #footer>
+        <el-button @click="tiktokCookieVisible = false">取消</el-button>
+        <el-button type="primary" :loading="tiktokCookieSaving" @click="importTiktokCookie">导入</el-button>
       </template>
     </el-dialog>
 

@@ -23,10 +23,11 @@ def get_reports_service():
 
 class ReportsService:
     def __init__(self, xhs_monitor_repo, douyin_monitor_repo, download_store, account_repo,
-                 ks_monitor_repo=None):
+                 ks_monitor_repo=None, tiktok_monitor_repo=None):
         self.xhs = xhs_monitor_repo
         self.douyin = douyin_monitor_repo
         self.ks = ks_monitor_repo
+        self.tiktok = tiktok_monitor_repo
         self.downloads = download_store
         self.accounts = account_repo
 
@@ -128,6 +129,8 @@ class ReportsService:
             "douyin-monitors": lambda: self._monitor_rows(self.douyin),
             "douyin-contents": lambda: self._content_rows(self.douyin, "抖音"),
             "ks-monitors": lambda: self._monitor_rows(self.ks),
+            "tiktok-monitors": lambda: self._monitor_rows(self.tiktok),
+            "tiktok-contents": lambda: self._content_rows(self.tiktok, "TikTok"),
             "ks-contents": lambda: self._content_rows(self.ks, "快手"),
             "downloads": self._download_rows,
             "accounts": self._account_rows,
@@ -164,6 +167,8 @@ REPORT_CATALOG: list[dict] = [
     {"kind": "douyin-contents", "label": "抖音作品记录", "desc": "监控发现的全部作品明细"},
     {"kind": "ks-monitors", "label": "快手监控目标", "desc": "全部监控目标与扫描状态"},
     {"kind": "ks-contents", "label": "快手作品记录", "desc": "监控发现的全部作品明细"},
+    {"kind": "tiktok-monitors", "label": "TikTok 监控目标", "desc": "全部监控目标与扫描状态"},
+    {"kind": "tiktok-contents", "label": "TikTok 作品记录", "desc": "监控发现的全部作品明细"},
     {"kind": "downloads", "label": "下载任务历史", "desc": "链接下载任务与产物清单"},
     {"kind": "accounts", "label": "账号清单", "desc": "统一账号中心全部账号与体检状态"},
 ]

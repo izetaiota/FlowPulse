@@ -16,6 +16,9 @@ from flowpulse.core.crypto import CredentialCipher
 from flowpulse.core.notify import WebhookNotifier
 from flowpulse.modules.accounts import AccountRepository, AccountService, WereadProvider, XhsProvider
 from flowpulse.modules.channels import ChannelsService, ChannelsStore
+from flowpulse.modules.tiktok.account import TiktokAccountService
+from flowpulse.modules.tiktok.fetcher import TiktokFetcher
+from flowpulse.modules.tiktok.monitoring import TiktokMonitorRepository, TiktokMonitorService
 from flowpulse.modules.douyin.account import DouyinAccountService
 from flowpulse.modules.douyin.browser import DouyinBrowserFetcher
 from flowpulse.modules.douyin.monitoring import (
@@ -96,6 +99,10 @@ class Runtime:
     ks_monitor_service: KsMonitorService
     ks_monitor_scheduler: MonitorScheduler
     channels_service: ChannelsService
+    tiktok_account_service: TiktokAccountService
+    tiktok_monitor_service: TiktokMonitorService
+    tiktok_monitor_scheduler: MonitorScheduler
+    tiktok_fetcher: TiktokFetcher
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -376,6 +383,28 @@ def build_runtime(settings: Settings) -> Runtime:
         ChannelsStore(settings.data_dir),
     )
 
+    # TikTok（P5-T5.3）：原生签名直连（无浏览器），关键词监控
+    tiktok_account_service = TiktokAccountService(account_service)
+
+    def _tiktok_login_state() -> tuple[str | None, dict | None]:
+        account = account_service.repository.find_by_key("tiktok", "default")
+        if account is None:
+            return None, None
+        return account_service.get_credential(account["id"]), None
+
+    tiktok_fetcher = TiktokFetcher(_tiktok_login_state, proxy=settings.tiktok_proxy)
+    tiktok_monitor_repository = TiktokMonitorRepository(db_sessionmaker, settings.data_dir)
+    tiktok_monitor_service = TiktokMonitorService(
+        tiktok_monitor_repository, tiktok_fetcher, notifier=weread_notifier
+    )
+    tiktok_monitor_scheduler = MonitorScheduler(
+        tiktok_monitor_service,
+        tiktok_monitor_repository,
+        tick_seconds=settings.tiktok_monitor_tick_seconds,
+        enabled=settings.tiktok_monitor_enabled,
+    )
+    reports_service.tiktok = tiktok_monitor_repository
+
     return Runtime(
         settings=settings,
         client=client,
@@ -409,5 +438,9 @@ def build_runtime(settings: Settings) -> Runtime:
         ks_monitor_service=ks_monitor_service,
         ks_monitor_scheduler=ks_monitor_scheduler,
         channels_service=channels_service,
+        tiktok_account_service=tiktok_account_service,
+        tiktok_monitor_service=tiktok_monitor_service,
+        tiktok_monitor_scheduler=tiktok_monitor_scheduler,
+        tiktok_fetcher=tiktok_fetcher,
         db_engine=db_engine,
     )
