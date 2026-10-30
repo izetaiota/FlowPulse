@@ -25,6 +25,7 @@ DEFAULT_MENUS: list[dict] = [
     {"id": "weread", "title": "公众号订阅", "path": "/weread", "icon": "Reading"},
     {"id": "xhs", "title": "小红书工作台", "path": "/xhs", "icon": "PictureFilled"},
     {"id": "xhs-monitor", "title": "作品监控", "path": "/xhs/monitor", "icon": "Monitor"},
+    {"id": "channels", "title": "视频号", "path": "/channels", "icon": "VideoCameraFilled"},
     {"id": "transcribe", "title": "转写任务", "path": "/transcribe", "icon": "VideoPlay"},
     {"id": "content-create", "title": "内容创作", "path": "/content/create", "icon": "EditPen"},
     {"id": "publish", "title": "发布任务", "path": "/publish", "icon": "Promotion"},

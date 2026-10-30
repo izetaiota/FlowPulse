@@ -62,6 +62,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "作品监控", icon: "Monitor" },
       },
       {
+        path: "channels",
+        name: "channels",
+        component: () => import("@/views/channels/index.vue"),
+        meta: { title: "视频号", icon: "VideoCameraFilled" },
+      },
+      {
         path: "transcribe",
         name: "transcribe",
         component: () => import("@/views/transcribe/index.vue"),

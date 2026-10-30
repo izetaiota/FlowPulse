@@ -15,6 +15,7 @@ from flowpulse.core.auth import AuthUserStore
 from flowpulse.core.crypto import CredentialCipher
 from flowpulse.core.notify import WebhookNotifier
 from flowpulse.modules.accounts import AccountRepository, AccountService, WereadProvider, XhsProvider
+from flowpulse.modules.channels import ChannelsService, ChannelsStore
 from flowpulse.modules.douyin.account import DouyinAccountService
 from flowpulse.modules.douyin.browser import DouyinBrowserFetcher
 from flowpulse.modules.douyin.monitoring import (
@@ -94,6 +95,7 @@ class Runtime:
     ks_account_service: KsAccountService
     ks_monitor_service: KsMonitorService
     ks_monitor_scheduler: MonitorScheduler
+    channels_service: ChannelsService
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -367,6 +369,13 @@ def build_runtime(settings: Settings) -> Runtime:
         enabled=settings.ks_monitor_enabled,
     )
 
+    # 视频号（P5-T5.2）：仅本账号数据（扫码登录 + 创作者助手拦截，快照存 JSON）
+    channels_service = ChannelsService(
+        account_service,
+        settings.data_dir / "browser" / "profiles",
+        ChannelsStore(settings.data_dir),
+    )
+
     return Runtime(
         settings=settings,
         client=client,
@@ -399,5 +408,6 @@ def build_runtime(settings: Settings) -> Runtime:
         ks_account_service=ks_account_service,
         ks_monitor_service=ks_monitor_service,
         ks_monitor_scheduler=ks_monitor_scheduler,
+        channels_service=channels_service,
         db_engine=db_engine,
     )

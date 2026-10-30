@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     ks_monitor_tick_seconds: int = 60
     ks_browser_headless: bool = True
 
+    # --- 视频号平台（P5-T5.2，仅本账号数据）---
+    channels_browser_headless: bool = True
+
     # --- 写操作风控闸（P4）---
     risk_enabled: bool = True
     # 单账号小时/日写操作配额（0 = 不限）
