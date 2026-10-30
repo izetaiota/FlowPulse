@@ -90,14 +90,18 @@
         radial-gradient(700px 500px at 60% 110%, rgba(34, 211, 238, 0.12), transparent 60%),
         var(--dark);
       color: #fff;
+      /* 首屏撑满一整块视口，避免「横幅只显示一半」的截断感 */
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
       padding: 150px 0 96px;
     }
     .hero-grid {
       display: grid; grid-template-columns: 1.05fr 0.95fr;
-      gap: 64px; align-items: center;
+      gap: 64px; align-items: center; width: min(1120px, 92vw); margin: 0 auto;
     }
     @media (max-width: 960px) {
-      .hero { padding: 120px 0 72px; }
+      .hero { padding: 120px 0 72px; min-height: auto; display: block; }
       .hero-grid { grid-template-columns: 1fr; gap: 48px; }
     }
 
@@ -397,6 +401,28 @@
     /* ---------- 入场动画（无 JS 时内容直接可见） ---------- */
     .js .reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.6s ease, transform 0.6s ease; }
     .js .reveal.in { opacity: 1; transform: none; }
+
+    /* Hero 首屏内容上浮入场，预览卡随后轻微悬浮（与 reveal 一样由 .js 守护） */
+    .js .hero-grid > div:first-child {
+      animation: heroUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .js .preview {
+      animation:
+        heroUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both,
+        floaty 7s ease-in-out 1.8s infinite;
+    }
+    @keyframes heroUp {
+      from { opacity: 0; transform: translateY(26px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes floaty {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .js .hero-grid > div:first-child, .js .preview { animation: none; }
+      .js .reveal { transition: none; opacity: 1; transform: none; }
+    }
   </style>
 </head>
 <body>
