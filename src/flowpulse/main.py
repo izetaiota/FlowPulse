@@ -8,6 +8,12 @@ from flowpulse.core.auth import router as auth_router
 from flowpulse.modules.accounts import get_account_service
 from flowpulse.modules.accounts import router as accounts_router
 from flowpulse.modules.douyin.api.routes import get_pipeline, get_repository, router
+from flowpulse.modules.douyin.monitoring import (
+    get_douyin_account_service,
+    get_douyin_monitor_scheduler,
+    get_douyin_monitor_service,
+)
+from flowpulse.modules.douyin.monitoring import router as douyin_router
 from flowpulse.modules.downloader import get_download_service
 from flowpulse.modules.downloader import router as downloads_router
 from flowpulse.modules.menu import get_menu_repository
@@ -52,7 +58,9 @@ def create_app() -> FastAPI:
         runtime.weread_cookie_refresher.start()
         runtime.xhs_credential_checker.start()
         runtime.xhs_monitor_scheduler.start()
+        runtime.douyin_monitor_scheduler.start()
         yield
+        await runtime.douyin_monitor_scheduler.stop()
         await runtime.xhs_monitor_scheduler.stop()
         await runtime.weread_scheduler.stop()
         await runtime.weread_cookie_refresher.stop()
@@ -72,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_monitor_router, dependencies=[Depends(require_auth)])
+    app.include_router(douyin_router, dependencies=[Depends(require_auth)])
     app.include_router(downloads_router, dependencies=[Depends(require_auth)])
     app.include_router(weread_router, dependencies=[Depends(require_auth)])
     app.include_router(menu_router, dependencies=[Depends(require_auth)])
@@ -94,6 +103,11 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_monitor_service] = lambda: runtime.xhs_monitor_service
     app.dependency_overrides[get_monitor_scheduler] = lambda: runtime.xhs_monitor_scheduler
     app.dependency_overrides[get_download_service] = lambda: runtime.download_service
+    app.dependency_overrides[get_douyin_account_service] = lambda: runtime.douyin_account_service
+    app.dependency_overrides[get_douyin_monitor_service] = lambda: runtime.douyin_monitor_service
+    app.dependency_overrides[get_douyin_monitor_scheduler] = (
+        lambda: runtime.douyin_monitor_scheduler
+    )
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service

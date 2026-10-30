@@ -1,31 +1,44 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { monitorApi, type XhsContent, type XhsMonitor } from "@/api/monitor";
+import { monitorApi, type XhsMonitor } from "@/api/monitor";
+import { douyinAccountApi, douyinMonitorApi, type DouyinAccountStatus, type DouyinMonitor } from "@/api/douyin";
 
-const monitors = ref<XhsMonitor[]>([]);
-const scheduler = ref<{ enabled: boolean; task_alive: boolean; due_now: number } | null>(null);
+// 平台维度：xhs / douyin 共用本页
+type Platform = "xhs" | "douyin";
+type AnyMonitor = (XhsMonitor | DouyinMonitor) & { platform: Platform };
+
+const platform = ref<Platform | "">("");
+const monitors = ref<AnyMonitor[]>([]);
 const loading = ref(false);
 const scanningIds = ref<number[]>([]);
-
-const contents = ref<XhsContent[]>([]);
-const total = ref(0);
-const page = ref(1);
-const pageSize = ref(20);
-const contentMonitor = ref<number | null>(null);
-const contentsLoading = ref(false);
-
-const monitorOptions = computed(() => [
-  { value: null as number | null, label: "全部来源" },
-  ...monitors.value.map((m) => ({ value: m.id, label: m.name || m.target })),
-]);
 
 async function loadMonitors() {
   loading.value = true;
   try {
-    const [list, status] = await Promise.all([monitorApi.list(), monitorApi.status()]);
-    monitors.value = list.monitors;
-    scheduler.value = status;
+    const tasks: Promise<void>[] = [];
+    if (platform.value === "" || platform.value === "xhs") {
+      tasks.push(
+        monitorApi.list().then((r) => {
+          monitors.value = [
+            ...monitors.value.filter((m) => m.platform !== "xhs"),
+            ...r.monitors.map((m) => ({ ...m, platform: "xhs" as Platform })),
+          ];
+        }),
+      );
+    }
+    if (platform.value === "" || platform.value === "douyin") {
+      tasks.push(
+        douyinMonitorApi.list().then((r) => {
+          monitors.value = [
+            ...monitors.value.filter((m) => m.platform !== "douyin"),
+            ...r.monitors.map((m) => ({ ...m, platform: "douyin" as Platform })),
+          ];
+        }),
+      );
+    }
+    monitors.value = [];
+    await Promise.all(tasks);
   } catch {
     ElMessage.error("监控目标加载失败");
   } finally {
@@ -33,36 +46,73 @@ async function loadMonitors() {
   }
 }
 
-async function loadContents() {
-  contentsLoading.value = true;
-  try {
-    const result = await monitorApi.contents({
-      monitor_id: contentMonitor.value ?? undefined,
-      page: page.value,
-      page_size: pageSize.value,
-    });
-    contents.value = result.contents;
-    total.value = result.total;
-  } catch {
-    ElMessage.error("作品记录加载失败");
-  } finally {
-    contentsLoading.value = false;
-  }
-}
-
-async function refreshAll() {
-  await Promise.all([loadMonitors(), loadContents()]);
-}
-
 function formatTime(iso: string | null): string {
   if (!iso) return "—";
   return iso.replace("T", " ").slice(0, 19);
+}
+
+function scanStatusTag(status: string): { label: string; type: "success" | "danger" | "info" } {
+  if (status === "ok") return { label: "正常", type: "success" };
+  if (status === "error") return { label: "出错", type: "danger" };
+  return { label: "未扫描", type: "info" };
+}
+
+// ---- 行操作（按平台路由 API） ----
+const api = (p: Platform) => (p === "xhs" ? monitorApi : douyinMonitorApi);
+
+async function scanNow(monitor: AnyMonitor) {
+  scanningIds.value.push(monitor.id);
+  try {
+    const { result } = await api(monitor.platform).scan(monitor.id);
+    if (result.ok) {
+      ElMessage.success(`扫描完成：新作品 ${result.new_count} 条${result.notified ? "（已推送通知）" : ""}`);
+    } else {
+      ElMessage.warning(`扫描失败：${result.message}`);
+    }
+    await Promise.all([loadMonitors(), loadContents()]);
+  } catch {
+    ElMessage.error("扫描请求失败");
+  } finally {
+    scanningIds.value = scanningIds.value.filter((id) => id !== monitor.id);
+  }
+}
+
+async function toggleStatus(monitor: AnyMonitor) {
+  const next = monitor.status === "active" ? "paused" : "active";
+  try {
+    await api(monitor.platform).update(monitor.id, { status: next });
+    ElMessage.success(next === "active" ? "已恢复" : "已暂停");
+    await loadMonitors();
+  } catch {
+    ElMessage.error("操作失败");
+  }
+}
+
+async function removeMonitor(monitor: AnyMonitor) {
+  try {
+    await ElMessageBox.confirm(
+      `删除「${monitor.name || monitor.target}」及其已收录的 ${monitor.content_count} 条作品记录？`,
+      "删除监控",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" },
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api(monitor.platform).remove(monitor.id);
+    ElMessage.success("已删除");
+    if (contentMonitor.value === monitor.id) contentMonitor.value = null;
+    await Promise.all([loadMonitors(), loadContents()]);
+  } catch {
+    ElMessage.error("删除失败");
+  }
 }
 
 // ---- 新增监控 ----
 const createVisible = ref(false);
 const creating = ref(false);
 const form = ref({
+  platform: "xhs" as Platform,
   kind: "keyword" as "creator" | "keyword",
   target: "",
   name: "",
@@ -72,8 +122,9 @@ const form = ref({
   backfill_count: 10,
 });
 
-function openCreate() {
+function openCreate(platform: Platform = "xhs") {
   form.value = {
+    platform,
     kind: "keyword",
     target: "",
     name: "",
@@ -88,15 +139,15 @@ function openCreate() {
 async function submitCreate() {
   const target = form.value.target.trim();
   if (!target) {
-    ElMessage.warning(form.value.kind === "creator" ? "请粘贴用户主页链接" : "请输入关键词");
+    ElMessage.warning(form.value.kind === "creator" ? "请填写主页链接或 sec_uid" : "请输入关键词");
     return;
   }
   creating.value = true;
   try {
-    await monitorApi.create({ ...form.value, target });
+    await api(form.value.platform).create({ ...form.value, target });
     ElMessage.success("监控目标已创建，首次扫描将只入库基线不推送");
     createVisible.value = false;
-    await refreshAll();
+    await Promise.all([loadMonitors(), loadContents()]);
   } catch (error: unknown) {
     const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
     ElMessage.error(detail || "创建失败");
@@ -105,87 +156,190 @@ async function submitCreate() {
   }
 }
 
-// ---- 行操作 ----
-async function scanNow(monitor: XhsMonitor) {
-  scanningIds.value.push(monitor.id);
+// ---- 抖音账号（T3.1） ----
+const douyinAccount = ref<DouyinAccountStatus | null>(null);
+const cookieVisible = ref(false);
+const cookieInput = ref("");
+const cookieSaving = ref(false);
+const qrState = ref("");
+const qrMessage = ref("");
+const qrPolling = ref<number | null>(null);
+
+async function loadDouyinAccount() {
   try {
-    const { result } = await monitorApi.scan(monitor.id);
-    if (result.ok) {
-      ElMessage.success(`扫描完成：新作品 ${result.new_count} 篇${result.notified ? "（已推送通知）" : ""}`);
-    } else {
-      ElMessage.warning(`扫描失败：${result.message}`);
-    }
-    await refreshAll();
+    douyinAccount.value = await douyinAccountApi.status();
   } catch {
-    ElMessage.error("扫描请求失败");
+    douyinAccount.value = null;
+  }
+}
+
+async function importCookie() {
+  if (!cookieInput.value.trim()) {
+    ElMessage.warning("请粘贴抖音 Cookie（需含 sessionid 与 ttwid）");
+    return;
+  }
+  cookieSaving.value = true;
+  try {
+    await douyinAccountApi.importCookie(cookieInput.value.trim());
+    ElMessage.success("Cookie 已导入");
+    cookieVisible.value = false;
+    cookieInput.value = "";
+    await loadDouyinAccount();
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(detail || "导入失败");
   } finally {
-    scanningIds.value = scanningIds.value.filter((id) => id !== monitor.id);
+    cookieSaving.value = false;
   }
 }
 
-async function toggleStatus(monitor: XhsMonitor) {
-  const next = monitor.status === "active" ? "paused" : "active";
+async function startQrLogin() {
   try {
-    await monitorApi.update(monitor.id, { status: next });
-    ElMessage.success(next === "active" ? "已恢复" : "已暂停");
-    await loadMonitors();
-  } catch {
-    ElMessage.error("操作失败");
+    const started = await douyinAccountApi.qrStart();
+    qrState.value = started.state;
+    qrMessage.value = started.message;
+    ElMessage.info("已在本机打开浏览器，请在页面中扫码登录抖音");
+    if (qrPolling.value) window.clearInterval(qrPolling.value);
+    qrPolling.value = window.setInterval(async () => {
+      const state = await douyinAccountApi.qrPoll(started.session_id);
+      qrState.value = state.state;
+      qrMessage.value = state.message;
+      if (state.state === "logged_in") {
+        stopQrPolling();
+        ElMessage.success("扫码登录成功，账号已保存");
+        await loadDouyinAccount();
+      } else if (["expired", "failed", "unknown"].includes(state.state)) {
+        stopQrPolling();
+      }
+    }, 3000);
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(detail || "无法启动扫码（未安装浏览器引擎？）");
   }
 }
 
-async function removeMonitor(monitor: XhsMonitor) {
+function stopQrPolling() {
+  if (qrPolling.value) {
+    window.clearInterval(qrPolling.value);
+    qrPolling.value = null;
+  }
+}
+
+async function clearDouyinAccount() {
   try {
-    await ElMessageBox.confirm(
-      `删除「${monitor.name || monitor.target}」及其已收录的 ${monitor.content_count} 条作品记录？`,
-      "删除监控",
-      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" },
-    );
+    await ElMessageBox.confirm("删除抖音账号（Cookie 与登录态）？", "删除账号", {
+      type: "warning",
+    });
   } catch {
     return;
   }
+  await douyinAccountApi.clear();
+  ElMessage.success("已删除");
+  await loadDouyinAccount();
+}
+
+// ---- 作品记录（跨平台合并） ----
+const contents = ref<Record<string, unknown>[]>([]);
+const contentMonitor = ref<number | null>(null);
+const contentsLoading = ref(false);
+
+const monitorOptions = computed(() => [
+  { value: null as number | null, label: "全部来源" },
+  ...monitors.value.map((m) => ({ value: m.id, label: `[${m.platform === "xhs" ? "小红书" : "抖音"}] ${m.name || m.target}` })),
+]);
+
+async function loadContents() {
+  contentsLoading.value = true;
   try {
-    await monitorApi.remove(monitor.id);
-    ElMessage.success("已删除");
-    if (contentMonitor.value === monitor.id) contentMonitor.value = null;
-    page.value = 1;
-    await refreshAll();
+    const requests: Promise<Record<string, unknown>[]>[] = [];
+    if (platform.value === "" || platform.value === "xhs") {
+      requests.push(
+        monitorApi
+          .contents({ monitor_id: contentMonitor.value ?? undefined, page: 1, page_size: 100 })
+          .then((r) => r.contents.map((c) => ({ ...c, platform: "xhs" }))),
+      );
+    }
+    if (platform.value === "" || platform.value === "douyin") {
+      requests.push(
+        douyinMonitorApi
+          .contents({ monitor_id: contentMonitor.value ?? undefined, page: 1, page_size: 100 })
+          .then((r) => r.contents.map((c) => ({ ...c, platform: "douyin" }))),
+      );
+    }
+    const merged = (await Promise.all(requests)).flat();
+    merged.sort((a, b) => String(b.first_seen_at ?? "").localeCompare(String(a.first_seen_at ?? "")));
+    contents.value = merged.slice(0, 100);
   } catch {
-    ElMessage.error("删除失败");
+    ElMessage.error("作品记录加载失败");
+  } finally {
+    contentsLoading.value = false;
   }
 }
 
-function scanStatusTag(status: string): { label: string; type: "success" | "danger" | "info" } {
-  if (status === "ok") return { label: "正常", type: "success" };
-  if (status === "error") return { label: "出错", type: "danger" };
-  return { label: "未扫描", type: "info" };
+async function refreshAll() {
+  await Promise.all([loadMonitors(), loadContents(), loadDouyinAccount()]);
 }
 
 onMounted(refreshAll);
+onUnmounted(stopQrPolling);
 </script>
 
 <template>
   <div class="space-y-4">
+    <!-- 抖音账号 -->
+    <el-card v-if="platform === '' || platform === 'douyin'" shadow="never">
+      <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span class="font-bold">抖音账号</span>
+            <span class="ml-3 text-xs text-slate-400">
+              {{ douyinAccount?.configured
+                ? douyinAccount.logged_in_guess ? "已配置 Cookie" : "Cookie 不完整"
+                : "未配置（监控扫描将无法读取）" }}
+              · 引擎 {{ douyinAccount?.engine || "检测中" }}
+            </span>
+          </div>
+          <div class="flex gap-2">
+            <el-button size="small" @click="cookieVisible = true">粘贴 Cookie</el-button>
+            <el-button size="small" type="primary" @click="startQrLogin">浏览器扫码</el-button>
+            <el-button v-if="douyinAccount?.configured" size="small" type="danger" plain @click="clearDouyinAccount">
+              删除
+            </el-button>
+          </div>
+        </div>
+      </template>
+      <p v-if="qrMessage" class="m-0 text-xs" :class="qrState === 'logged_in' ? 'text-emerald-600' : 'text-slate-500'">
+        {{ qrMessage }}
+      </p>
+    </el-card>
+
     <!-- 监控目标 -->
     <el-card shadow="never" v-loading="loading">
       <template #header>
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div class="flex items-center gap-3">
             <span class="font-bold">作品监控目标</span>
-            <span v-if="scheduler" class="ml-3 text-xs text-slate-400">
-              调度{{ scheduler.enabled ? "已启用" : "已关闭" }}
-              <template v-if="scheduler.task_alive"> · 运行中</template>
-              · 到期 {{ scheduler.due_now }} 个
-            </span>
+            <el-radio-group v-model="platform" size="small" @change="refreshAll">
+              <el-radio-button value="">全部</el-radio-button>
+              <el-radio-button value="xhs">小红书</el-radio-button>
+              <el-radio-button value="douyin">抖音</el-radio-button>
+            </el-radio-group>
           </div>
           <div class="flex gap-2">
-            <el-button @click="refreshAll">刷新</el-button>
-            <el-button type="primary" @click="openCreate">新增监控</el-button>
+            <el-button size="small" @click="refreshAll">刷新</el-button>
+            <el-button size="small" type="primary" @click="openCreate()">新增监控</el-button>
           </div>
         </div>
       </template>
 
       <el-table :data="monitors">
+        <el-table-column label="平台" width="90">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.platform === 'xhs' ? 'danger' : 'primary'" effect="plain">
+              {{ row.platform === "xhs" ? "小红书" : "抖音" }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="类型" width="90">
           <template #default="{ row }">
             <el-tag :type="row.kind === 'creator' ? 'warning' : 'primary'" size="small">
@@ -193,12 +347,12 @@ onMounted(refreshAll);
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="name" label="名称" min-width="130" show-overflow-tooltip />
-        <el-table-column prop="target" label="目标" min-width="180" show-overflow-tooltip />
-        <el-table-column label="周期" width="90">
+        <el-table-column prop="name" label="名称" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="target" label="目标" min-width="170" show-overflow-tooltip />
+        <el-table-column label="周期" width="85">
           <template #default="{ row }">{{ row.interval_minutes }} 分钟</template>
         </el-table-column>
-        <el-table-column prop="content_count" label="作品数" width="80" />
+        <el-table-column prop="content_count" label="作品数" width="75" />
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
@@ -219,23 +373,17 @@ onMounted(refreshAll);
         </el-table-column>
         <el-table-column label="操作" width="210" fixed="right">
           <template #default="{ row }">
-            <el-button
-              size="small"
-              :loading="scanningIds.includes(row.id)"
-              @click="scanNow(row)"
-            >
+            <el-button size="small" :loading="scanningIds.includes(row.id)" @click="scanNow(row)">
               扫描
             </el-button>
             <el-button size="small" @click="toggleStatus(row)">
               {{ row.status === "active" ? "暂停" : "恢复" }}
             </el-button>
-            <el-button size="small" type="danger" plain @click="removeMonitor(row)">
-              删除
-            </el-button>
+            <el-button size="small" type="danger" plain @click="removeMonitor(row)">删除</el-button>
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="暂无监控目标：新增后自动定时扫描小红书新作品并推送通知" />
+          <el-empty description="暂无监控目标：新增后自动定时扫描新作品并推送通知" />
         </template>
       </el-table>
     </el-card>
@@ -244,14 +392,11 @@ onMounted(refreshAll);
     <el-card shadow="never">
       <template #header>
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <span class="font-bold">作品记录（{{ total }}）</span>
+          <span class="font-bold">作品记录（最近 {{ contents.length }} 条）</span>
           <el-select
             v-model="contentMonitor"
-            style="width: 200px"
-            @change="
-              page = 1;
-              loadContents();
-            "
+            style="width: 260px"
+            @change="loadContents"
           >
             <el-option
               v-for="opt in monitorOptions"
@@ -264,18 +409,25 @@ onMounted(refreshAll);
       </template>
 
       <el-table :data="contents" v-loading="contentsLoading">
+        <el-table-column label="平台" width="85">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.platform === 'xhs' ? 'danger' : 'primary'" effect="plain">
+              {{ row.platform === "xhs" ? "小红书" : "抖音" }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="标题" min-width="240">
           <template #default="{ row }">
             <a :href="row.url" target="_blank" rel="noopener" class="fp-note-link">
-              {{ row.title || row.note_id }}
+              {{ row.title || row.aweme_id || row.note_id }}
             </a>
           </template>
         </el-table-column>
         <el-table-column prop="author" label="作者" min-width="110" show-overflow-tooltip />
         <el-table-column label="类型" width="80">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.note_type === 'video' ? 'danger' : 'info'">
-              {{ row.note_type === "video" ? "视频" : "图文" }}
+            <el-tag size="small" :type="row.media_type === 'video' || row.note_type === 'video' ? 'danger' : 'info'">
+              {{ row.media_type === "video" || row.note_type === "video" ? "视频" : "图文" }}
             </el-tag>
           </template>
         </el-table-column>
@@ -288,21 +440,17 @@ onMounted(refreshAll);
           <el-empty description="暂无作品记录" />
         </template>
       </el-table>
-
-      <div class="mt-3 flex justify-end">
-        <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
-          :total="total"
-          layout="total, prev, pager, next"
-          @current-change="loadContents"
-        />
-      </div>
     </el-card>
 
     <!-- 新增监控弹窗 -->
-    <el-dialog v-model="createVisible" title="新增作品监控" width="520px">
+    <el-dialog v-model="createVisible" title="新增作品监控" width="540px">
       <el-form label-width="110px">
+        <el-form-item label="平台">
+          <el-radio-group v-model="form.platform">
+            <el-radio value="xhs">小红书</el-radio>
+            <el-radio value="douyin">抖音</el-radio>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="监控类型">
           <el-radio-group v-model="form.kind">
             <el-radio value="keyword">关键词搜索</el-radio>
@@ -314,7 +462,9 @@ onMounted(refreshAll);
             v-model="form.target"
             :placeholder="
               form.kind === 'creator'
-                ? 'https://www.xiaohongshu.com/user/profile/xxx?xsec_token=...'
+                ? form.platform === 'xhs'
+                  ? 'https://www.xiaohongshu.com/user/profile/xxx?xsec_token=...'
+                  : 'https://www.douyin.com/user/MS4Wxxx 或裸 sec_uid'
                 : '如：收纳教程'
             "
           />
@@ -324,7 +474,7 @@ onMounted(refreshAll);
         </el-form-item>
         <el-form-item label="扫描周期">
           <el-input-number v-model="form.interval_minutes" :min="1" :max="1440" />
-          <span class="ml-2 text-xs text-slate-400">分钟（1~1440，不建议低于 15）</span>
+          <span class="ml-2 text-xs text-slate-400">分钟（不建议低于 15）</span>
         </el-form-item>
         <el-form-item label="首扫基线">
           <el-input-number v-model="form.backfill_count" :min="0" :max="100" />
@@ -340,6 +490,20 @@ onMounted(refreshAll);
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
         <el-button type="primary" :loading="creating" @click="submitCreate">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 抖音 Cookie 导入弹窗 -->
+    <el-dialog v-model="cookieVisible" title="导入抖音 Cookie" width="560px">
+      <el-input
+        v-model="cookieInput"
+        type="textarea"
+        :rows="6"
+        placeholder="从已登录抖音的浏览器复制完整 Cookie（必须包含 sessionid 与 ttwid）"
+      />
+      <template #footer>
+        <el-button @click="cookieVisible = false">取消</el-button>
+        <el-button type="primary" :loading="cookieSaving" @click="importCookie">导入</el-button>
       </template>
     </el-dialog>
   </div>

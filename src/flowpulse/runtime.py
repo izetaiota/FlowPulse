@@ -15,6 +15,12 @@ from flowpulse.core.auth import AuthUserStore
 from flowpulse.core.crypto import CredentialCipher
 from flowpulse.core.notify import WebhookNotifier
 from flowpulse.modules.accounts import AccountRepository, AccountService, WereadProvider, XhsProvider
+from flowpulse.modules.douyin.account import DouyinAccountService
+from flowpulse.modules.douyin.browser import DouyinBrowserFetcher
+from flowpulse.modules.douyin.monitoring import (
+    DouyinMonitorRepository,
+    DouyinMonitorService,
+)
 from flowpulse.modules.douyin.resolvers.api import ApiResolver
 from flowpulse.modules.douyin.resolvers.router import ResolverRouter
 from flowpulse.modules.douyin.resolvers.share_page import SharePageResolver
@@ -29,6 +35,7 @@ from flowpulse.modules.douyin.transcribers.whisper import WhisperTranscriber
 from flowpulse.modules.downloader import DownloadService, DownloadStore
 from flowpulse.modules.menu import MenuRepository
 from flowpulse.modules.notify import NotifyStore
+from flowpulse.modules.platforms import MonitorScheduler
 from flowpulse.modules.queue import QueueService
 from flowpulse.modules.weread.qrlogin import WereadQrLoginManager
 from flowpulse.modules.weread.refresh import WereadCookieRefresher
@@ -69,6 +76,9 @@ class Runtime:
     xhs_monitor_service: XhsMonitorService
     xhs_monitor_scheduler: XhsMonitorScheduler
     download_service: DownloadService
+    douyin_account_service: DouyinAccountService
+    douyin_monitor_service: DouyinMonitorService
+    douyin_monitor_scheduler: MonitorScheduler
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -252,6 +262,35 @@ def build_runtime(settings: Settings) -> Runtime:
     # 通用链接下载（P2）：yt-dlp 任务化下载（可选依赖，未安装时 API 优雅报错）
     download_service = DownloadService(DownloadStore(settings.data_dir / "downloads"))
 
+    # 抖音平台（P3）：账号接入（统一账号中心）+ 拦截式读取 + 作品监控
+    douyin_account_service = DouyinAccountService(
+        account_service, settings.data_dir / "browser" / "profiles"
+    )
+
+    def _douyin_login_state() -> tuple[str | None, dict | None]:
+        account = account_service.repository.find_by_key("douyin", "default")
+        if account is None:
+            return None, None
+        cookie = account_service.get_credential(account["id"])
+        storage = account.get("storage_state") or None
+        return cookie, storage
+
+    douyin_fetcher = DouyinBrowserFetcher(
+        _douyin_login_state,
+        settings.data_dir / "browser" / "profiles",
+        headless=settings.douyin_browser_headless,
+    )
+    douyin_monitor_repository = DouyinMonitorRepository(db_sessionmaker, settings.data_dir)
+    douyin_monitor_service = DouyinMonitorService(
+        douyin_monitor_repository, douyin_fetcher, notifier=weread_notifier
+    )
+    douyin_monitor_scheduler = MonitorScheduler(
+        douyin_monitor_service,
+        douyin_monitor_repository,
+        tick_seconds=settings.douyin_monitor_tick_seconds,
+        enabled=settings.douyin_monitor_enabled,
+    )
+
     return Runtime(
         settings=settings,
         client=client,
@@ -273,5 +312,8 @@ def build_runtime(settings: Settings) -> Runtime:
         xhs_monitor_service=xhs_monitor_service,
         xhs_monitor_scheduler=xhs_monitor_scheduler,
         download_service=download_service,
+        douyin_account_service=douyin_account_service,
+        douyin_monitor_service=douyin_monitor_service,
+        douyin_monitor_scheduler=douyin_monitor_scheduler,
         db_engine=db_engine,
     )
