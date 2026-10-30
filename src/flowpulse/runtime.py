@@ -37,6 +37,7 @@ from flowpulse.modules.downloader import DownloadService, DownloadStore
 from flowpulse.modules.menu import MenuRepository
 from flowpulse.modules.notify import NotifyStore
 from flowpulse.modules.platforms import MonitorScheduler
+from flowpulse.modules.platforms.risk import RiskGate
 from flowpulse.modules.queue import QueueService
 from flowpulse.modules.weread.qrlogin import WereadQrLoginManager
 from flowpulse.modules.weread.refresh import WereadCookieRefresher
@@ -45,6 +46,7 @@ from flowpulse.modules.weread.service import WereadService
 from flowpulse.modules.weread.storage import WereadRepository
 from flowpulse.modules.xhs.integration.credential_check import XhsCredentialChecker
 from flowpulse.modules.xhs.integration.service import XhsService
+from flowpulse.modules.xhs.dm import DmRuleStore, XhsDmService
 from flowpulse.modules.xhs.monitoring import (
     XhsMonitorRepository,
     XhsMonitorScheduler,
@@ -81,6 +83,9 @@ class Runtime:
     douyin_monitor_service: DouyinMonitorService
     douyin_monitor_scheduler: MonitorScheduler
     douyin_publish_service: DouyinPublishService
+    risk_gate: RiskGate
+    xhs_dm_service: XhsDmService
+    xhs_dm_rule_store: DmRuleStore
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -294,12 +299,27 @@ def build_runtime(settings: Settings) -> Runtime:
     )
 
     # 抖音发布队列（T3.4）：草稿 → 有头浏览器发布（串行 worker）
+    # 写操作风控闸（T4.3）：发布前配额/冷却/安静时段检查，失败进冷却阶梯
+    risk_gate = RiskGate(
+        settings.data_dir / "risk" / "state.json",
+        enabled=settings.risk_enabled,
+        hourly_limit=settings.risk_hourly_limit,
+        daily_limit=settings.risk_daily_limit,
+        quiet_hours=settings.risk_quiet_hours,
+    )
     douyin_publish_service = DouyinPublishService(
         DouyinPublishStore(db_sessionmaker, settings.data_dir),
         settings.data_dir,
         _douyin_login_state,
         settings.data_dir / "browser" / "profiles",
         enabled=settings.douyin_publish_enabled,
+        risk_gate=risk_gate,
+    )
+
+    # 小红书私信（P4）：只读同步 + 回复规则/审核草稿
+    xhs_dm_rule_store = DmRuleStore(db_sessionmaker, settings.data_dir)
+    xhs_dm_service = XhsDmService(
+        xhs_service, settings.data_dir / "browser" / "profiles", xhs_dm_rule_store
     )
 
     return Runtime(
@@ -327,5 +347,8 @@ def build_runtime(settings: Settings) -> Runtime:
         douyin_monitor_service=douyin_monitor_service,
         douyin_monitor_scheduler=douyin_monitor_scheduler,
         douyin_publish_service=douyin_publish_service,
+        risk_gate=risk_gate,
+        xhs_dm_service=xhs_dm_service,
+        xhs_dm_rule_store=xhs_dm_rule_store,
         db_engine=db_engine,
     )

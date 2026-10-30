@@ -85,6 +85,14 @@ class Settings(BaseSettings):
     # 抖音发布队列 worker 总开关（发布执行始终有头，风控验证需人工）
     douyin_publish_enabled: bool = True
 
+    # --- 写操作风控闸（P4）---
+    risk_enabled: bool = True
+    # 单账号小时/日写操作配额（0 = 不限）
+    risk_hourly_limit: int = 10
+    risk_daily_limit: int = 50
+    # 安静时段（本地时钟，如 23:00-07:00 跨午夜；空 = 关闭）
+    risk_quiet_hours: str = "23:00-07:00"
+
     # --- 浏览器会话层（P0.5 骨架，P3 抖音接入时启用）---
     # 浏览器登录总开关（当前仅作预留；patchright 为可选依赖 browser 组）
     browser_enabled: bool = False

@@ -33,13 +33,19 @@ class DouyinPublishService:
         get_login_state,
         profiles_root: Path,
         enabled: bool = True,
+        risk_gate=None,
     ):
-        """data_root：媒体库根（解析 downloads/xxx 相对路径）；get_login_state 同 fetcher。"""
+        """data_root：媒体库根（解析 downloads/xxx 相对路径）；get_login_state 同 fetcher。
+
+        risk_gate（T4.3）：写操作风控闸——发布前 preflight（配额/冷却/安静时段），
+        成功/失败分别回写计数与冷却阶梯；被拦截的任务保持 pending 并记录原因。
+        """
         self.store = store
         self.data_root = data_root
         self._get_login_state = get_login_state
         self.allocator = ProfileAllocator(profiles_root)
         self.enabled = enabled
+        self.risk_gate = risk_gate
         self._task: asyncio.Task | None = None
         self._busy = False
 
@@ -139,11 +145,18 @@ class DouyinPublishService:
         task = self.store.next_due(_now_iso())
         if task is None:
             return None
+        # 风控闸（T4.3）：被拦截的任务保持 pending，原因写 error 供前端提示
+        if self.risk_gate is not None:
+            allowed, reason = self.risk_gate.preflight("douyin", "default")
+            if not allowed:
+                return self.store.update(task["id"], {"error": f"风控拦截：{reason}"})
         self._busy = True
         try:
             self.store.update(task["id"], {"status": STATUS_PUBLISHING, "error": ""})
             cookie, storage_state = self._get_login_state()
             if storage_state is None and not cookie:
+                if self.risk_gate is not None:
+                    self.risk_gate.record_failure("douyin", "default")
                 return self.store.update(
                     task["id"],
                     {
@@ -165,6 +178,11 @@ class DouyinPublishService:
                 visibility=task.get("visibility") or "public",
                 allow_save=bool(task.get("allow_save", True)),
             )
+            if self.risk_gate is not None:
+                if ok:
+                    self.risk_gate.record_success("douyin", "default")
+                else:
+                    self.risk_gate.record_failure("douyin", "default")
             updates = {
                 "status": STATUS_DONE if ok else STATUS_FAILED,
                 "result_url": result_url,

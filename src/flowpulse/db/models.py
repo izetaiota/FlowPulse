@@ -16,6 +16,8 @@
   fp_douyin_monitors       抖音作品监控目标（创作者主页 / 关键词）
   fp_douyin_contents       抖音监控作品记录（aweme_id 全局去重）
   fp_douyin_publish_tasks  抖音发布队列（草稿→待发→发布中→完成/失败）
+  fp_xhs_dm_rules          小红书私信自动回复规则（关键词→回复模板）
+  fp_xhs_dm_drafts         小红书私信建议回复草稿（人工审核）
 """
 
 from __future__ import annotations
@@ -334,6 +336,42 @@ class DouyinPublishTaskRow(Base):
     result_url: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str] = mapped_column(Text, default="")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class XhsDmRuleRow(Base):
+    """小红书私信自动回复规则：关键词命中未读会话最后一条消息 → 生成待审核草稿。"""
+
+    __tablename__ = "fp_xhs_dm_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), default="")
+    keywords: Mapped[str] = mapped_column(Text, default="")  # 逗号分隔，命中任一即匹配
+    reply_template: Mapped[str] = mapped_column(Text, default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class XhsDmDraftRow(Base):
+    """建议回复草稿：pending → approved / rejected（批准后由人工发送，自动化发送后续批次）。"""
+
+    __tablename__ = "fp_xhs_dm_drafts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conv_id: Mapped[str] = mapped_column(String(128), default="")
+    peer_uid: Mapped[str] = mapped_column(String(128), default="")
+    peer_nickname: Mapped[str] = mapped_column(String(255), default="")
+    last_text: Mapped[str] = mapped_column(Text, default="")
+    rule_id: Mapped[int | None] = mapped_column(Integer)
+    rule_name: Mapped[str] = mapped_column(String(100), default="")
+    suggested_reply: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|approved|rejected
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now

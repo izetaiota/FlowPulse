@@ -36,6 +36,8 @@ from flowpulse.modules.weread.api import (
 from flowpulse.modules.weread.api import (
     router as weread_router,
 )
+from flowpulse.modules.xhs.dm import get_dm_rule_store, get_dm_service
+from flowpulse.modules.xhs.dm import router as xhs_dm_router
 from flowpulse.modules.xhs.integration.routes import (
     get_xhs_credential_checker,
     get_xhs_service,
@@ -84,6 +86,7 @@ def create_app() -> FastAPI:
     app.include_router(router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_monitor_router, dependencies=[Depends(require_auth)])
+    app.include_router(xhs_dm_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_publish_router, dependencies=[Depends(require_auth)])
     app.include_router(downloads_router, dependencies=[Depends(require_auth)])
@@ -114,6 +117,8 @@ def create_app() -> FastAPI:
         lambda: runtime.douyin_monitor_scheduler
     )
     app.dependency_overrides[get_douyin_publish_service] = lambda: runtime.douyin_publish_service
+    app.dependency_overrides[get_dm_service] = lambda: runtime.xhs_dm_service
+    app.dependency_overrides[get_dm_rule_store] = lambda: runtime.xhs_dm_rule_store
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service
