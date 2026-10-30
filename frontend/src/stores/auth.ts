@@ -24,11 +24,10 @@ export const useAuthStore = defineStore("auth", {
       this.enabled = session.enabled;
       if (!session.enabled) {
         this.token = "";
-        this.username = "";
         localStorage.removeItem(TOKEN_KEY);
-      } else {
-        this.username = session.username;
       }
+      // 鉴权关闭时后端也返回部署配置的真实账号名，顶栏按真实账号展示
+      this.username = session.username;
       this.loaded = true;
     },
 

@@ -214,9 +214,13 @@ def login(request: LoginRequest) -> dict:
 
 @router.get("/api/auth/session")
 def session(request: Request) -> dict:
-    """前端启动时探测：鉴权是否启用、当前是否已登录。"""
+    """前端启动时探测：鉴权是否启用、当前是否已登录。
+
+    鉴权关闭时也返回部署配置的真实账号名（ADMIN_USERNAME），前端顶栏按真实账号展示。
+    """
     if not auth_enabled():
-        return {"enabled": False, "username": ""}
+        user = _load_user()
+        return {"enabled": False, "username": (user or {}).get("username") or _state["username"]}
     token = request.headers.get("authorization", "")
     if token.lower().startswith("bearer "):
         token = token[7:].strip()

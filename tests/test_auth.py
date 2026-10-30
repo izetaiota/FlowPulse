@@ -26,7 +26,10 @@ def make_settings(tmp_path: Path, **overrides) -> Settings:
 def test_auth_disabled_by_default(tmp_path: Path, monkeypatch):
     monkeypatch.setattr("flowpulse.main.get_settings", lambda: make_settings(tmp_path))
     with TestClient(create_app()) as client:
-        assert client.get("/api/auth/session").json()["enabled"] is False
+        session = client.get("/api/auth/session").json()
+        assert session["enabled"] is False
+        # 鉴权关闭也返回配置的真实账号名，前端顶栏按真实账号展示
+        assert session["username"] == "admin"
         # 未配置密码：业务接口直通（与历史行为一致）
         assert client.get("/api/weread/status").status_code == 200
 

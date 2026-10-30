@@ -113,9 +113,9 @@ const menu = computed(() =>
           <el-dropdown>
             <span class="fp-user">
               <el-avatar :size="30" class="fp-avatar">
-                {{ (authStore.username || "创")[0] }}
+                {{ (authStore.username || "本")[0] }}
               </el-avatar>
-              <span class="hidden sm:inline">{{ authStore.username || "创作者" }}</span>
+              <span class="hidden sm:inline">{{ authStore.username || "本地" }}</span>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
