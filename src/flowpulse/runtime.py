@@ -21,6 +21,7 @@ from flowpulse.modules.douyin.monitoring import (
     DouyinMonitorRepository,
     DouyinMonitorService,
 )
+from flowpulse.modules.douyin.publish import DouyinPublishService, DouyinPublishStore
 from flowpulse.modules.douyin.resolvers.api import ApiResolver
 from flowpulse.modules.douyin.resolvers.router import ResolverRouter
 from flowpulse.modules.douyin.resolvers.share_page import SharePageResolver
@@ -79,6 +80,7 @@ class Runtime:
     douyin_account_service: DouyinAccountService
     douyin_monitor_service: DouyinMonitorService
     douyin_monitor_scheduler: MonitorScheduler
+    douyin_publish_service: DouyinPublishService
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -291,6 +293,15 @@ def build_runtime(settings: Settings) -> Runtime:
         enabled=settings.douyin_monitor_enabled,
     )
 
+    # 抖音发布队列（T3.4）：草稿 → 有头浏览器发布（串行 worker）
+    douyin_publish_service = DouyinPublishService(
+        DouyinPublishStore(db_sessionmaker, settings.data_dir),
+        settings.data_dir,
+        _douyin_login_state,
+        settings.data_dir / "browser" / "profiles",
+        enabled=settings.douyin_publish_enabled,
+    )
+
     return Runtime(
         settings=settings,
         client=client,
@@ -315,5 +326,6 @@ def build_runtime(settings: Settings) -> Runtime:
         douyin_account_service=douyin_account_service,
         douyin_monitor_service=douyin_monitor_service,
         douyin_monitor_scheduler=douyin_monitor_scheduler,
+        douyin_publish_service=douyin_publish_service,
         db_engine=db_engine,
     )

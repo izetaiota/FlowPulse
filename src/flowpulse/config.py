@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     douyin_monitor_tick_seconds: int = 60
     # 拦截式读取是否无头（扫码登录始终有头；无头失败时可改 false 观察页面）
     douyin_browser_headless: bool = True
+    # 抖音发布队列 worker 总开关（发布执行始终有头，风控验证需人工）
+    douyin_publish_enabled: bool = True
 
     # --- 浏览器会话层（P0.5 骨架，P3 抖音接入时启用）---
     # 浏览器登录总开关（当前仅作预留；patchright 为可选依赖 browser 组）

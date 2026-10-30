@@ -97,14 +97,14 @@
 - [x] T2.3 与转写管线打通：抖音来源的已完成任务一键「转写」（原始链接提交转写管线）
 - 验收：真实 yt-dlp 链路实测（创建→线程执行→失败记录→重试入队全通）；164 项测试全绿（新增 6 项）；素材库页浏览器实测通过。验收标准中的"粘贴真实抖音/B站文案下载"待有真实分享链接时人工确认。
 
-### Phase 3 — 抖音平台（浏览器模式先行，API 签名后评估）🚧 2026-10-30 第一批完成（T3.1–T3.3）
+### Phase 3 — 抖音平台（浏览器模式先行，API 签名后评估）✅ 2026-10-30 完成（T3.1–T3.5）
 
 - [x] T3.1 抖音账号接入：`modules/douyin/account/`——粘贴 Cookie 导入（校验 sessionid+ttwid，Fernet 加密入 fp_accounts managed 行）+ 浏览器扫码登录（有头 Chrome，cookie 轮询→storage_state 入库，start→poll→verify 状态机带超时/取消）；账号中心自动出现抖音行
 - [x] T3.2 浏览器拦截式读取：`modules/douyin/browser/`——patchright 优先/官方 playwright 回退（`modules/browser/engine.py`，系统 Chrome channel 免下载，ManagedContext 包装生命周期）；用户作品（/user/{sec_uid} 拦 aweme/post）与关键词搜索（拦 search/item）均滚动翻页采集
 - [x] T3.3 抖音作品/评论监控：`fp_douyin_monitors/contents`（迁移 0009）+ 调度核心平台化（`modules/platforms/monitor_core.py`，xhs 调度器改为继承）+ 扫描语义与 xhs 一致（基线/去重/过滤/通知）；console 新增 `douyin-monitor-scan`；作品监控页平台化（平台筛选/抖音账号卡/创建对话框双平台/作品记录跨平台合并）
-- [ ] T3.4 抖音发布（浏览器自动化创作中心，仅 browser 模式）+ publish 占位页第一版（草稿/队列/状态）
-- [ ] T3.5 抖音 API 直连签名：a_bogus/ms_token 等直接移植 creatorhub `platforms/douyin/signing/`（作为"纯浏览器先行"的加速通道）
-- 第一批验收：Cookie 导入/状态机/监控扫描(mock+真实) 全测通（173 项测试全绿，新增 9 项）；真实无头 Chrome 端到端实测（拉起→访问→滚动拦截→关闭→状态 ok，匿名无数据属预期）；修复 playwright async API 生命周期 bug。带真实账号的完整验收（扫码→监控博主→入库）待用户扫码后人工确认。
+- [x] T3.4 抖音发布：`fp_douyin_publish_tasks`（迁移 0010）+ 发布驱动移植自 creatorhub publish.py（选择器多级兜底/风控人工验证窗口 5 分钟/诊断截图 data/debug/发布设置安全点选）+ 串行队列 worker（10s tick，有头执行）+ 前端「发布任务」页（媒体库选文件/草稿/立即发布/取消/删除，visibility 与保存权限）
+- [x] T3.5 签名库移植：`modules/douyin/signing/`（a_bogus/sm3/rc4/ms_token/netfp，文件头均带来源声明）；性质测试通过（a_bogus 164 位/随机性/impersonate 映射）。**API 直连客户端集成留待需要时做**（当前浏览器模式已可用，签名库就位）
+- 验收：180 项测试全绿（P3 共新增 16 项）；真实无头 Chrome 端到端实测监控扫描链路；发布驱动/队列以 mock 驱动测试 + 页面实测渲染（真实发布需用户扫码登录后人工确认，弹窗留有人工验证窗口）。
 
 ### Phase 4 — 私信与写操作风控（xhs 先、抖音后）
 

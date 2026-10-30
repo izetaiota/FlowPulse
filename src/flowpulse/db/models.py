@@ -15,6 +15,7 @@
   fp_xhs_contents          小红书监控作品记录（note_id 全局去重）
   fp_douyin_monitors       抖音作品监控目标（创作者主页 / 关键词）
   fp_douyin_contents       抖音监控作品记录（aweme_id 全局去重）
+  fp_douyin_publish_tasks  抖音发布队列（草稿→待发→发布中→完成/失败）
 """
 
 from __future__ import annotations
@@ -306,6 +307,34 @@ class DouyinContentRow(Base):
     extra: Mapped[dict] = mapped_column(JSONVariant, default=dict)
     notified: Mapped[bool] = mapped_column(Boolean, default=False)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class DouyinPublishTaskRow(Base):
+    """抖音发布队列：draft → pending → publishing → done/failed（canceled 终态）。
+
+    发布走浏览器自动化创作中心（T3.4），风控人工验证窗口最长 5 分钟；
+    media_paths 存媒体库相对路径列表（downloads/<task>/<file>）。
+    """
+
+    __tablename__ = "fp_douyin_publish_tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(Text, default="")
+    desc: Mapped[str] = mapped_column(Text, default="")
+    topics: Mapped[str] = mapped_column(Text, default="")  # 逗号分隔话题，写入正文
+    media_paths: Mapped[list] = mapped_column(JSONVariant, default=list)  # ["downloads/xx/a.mp4"]
+    media_type: Mapped[str] = mapped_column(String(16), default="video")  # video | images
+    visibility: Mapped[str] = mapped_column(String(16), default="public")  # public|friends|private
+    allow_save: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(16), default="draft")
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_url: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(Text, default="")
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )

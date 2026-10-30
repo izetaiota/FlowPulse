@@ -14,6 +14,8 @@ from flowpulse.modules.douyin.monitoring import (
     get_douyin_monitor_service,
 )
 from flowpulse.modules.douyin.monitoring import router as douyin_router
+from flowpulse.modules.douyin.publish import get_douyin_publish_service
+from flowpulse.modules.douyin.publish import router as douyin_publish_router
 from flowpulse.modules.downloader import get_download_service
 from flowpulse.modules.downloader import router as downloads_router
 from flowpulse.modules.menu import get_menu_repository
@@ -59,7 +61,9 @@ def create_app() -> FastAPI:
         runtime.xhs_credential_checker.start()
         runtime.xhs_monitor_scheduler.start()
         runtime.douyin_monitor_scheduler.start()
+        runtime.douyin_publish_service.start()
         yield
+        await runtime.douyin_publish_service.stop()
         await runtime.douyin_monitor_scheduler.stop()
         await runtime.xhs_monitor_scheduler.stop()
         await runtime.weread_scheduler.stop()
@@ -81,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(xhs_router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_monitor_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_router, dependencies=[Depends(require_auth)])
+    app.include_router(douyin_publish_router, dependencies=[Depends(require_auth)])
     app.include_router(downloads_router, dependencies=[Depends(require_auth)])
     app.include_router(weread_router, dependencies=[Depends(require_auth)])
     app.include_router(menu_router, dependencies=[Depends(require_auth)])
@@ -108,6 +113,7 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_douyin_monitor_scheduler] = (
         lambda: runtime.douyin_monitor_scheduler
     )
+    app.dependency_overrides[get_douyin_publish_service] = lambda: runtime.douyin_publish_service
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service
