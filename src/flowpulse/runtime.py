@@ -20,6 +20,7 @@ from flowpulse.modules.tiktok.account import TiktokAccountService
 from flowpulse.modules.tiktok.fetcher import TiktokFetcher
 from flowpulse.modules.tiktok.monitoring import TiktokMonitorRepository, TiktokMonitorService
 from flowpulse.modules.douyin.account import DouyinAccountService
+from flowpulse.modules.douyin.dm import DouyinDmService
 from flowpulse.modules.douyin.browser import DouyinBrowserFetcher
 from flowpulse.modules.douyin.monitoring import (
     DouyinMonitorRepository,
@@ -103,6 +104,7 @@ class Runtime:
     tiktok_monitor_service: TiktokMonitorService
     tiktok_monitor_scheduler: MonitorScheduler
     tiktok_fetcher: TiktokFetcher
+    douyin_dm_service: DouyinDmService
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -304,6 +306,7 @@ def build_runtime(settings: Settings) -> Runtime:
         settings.data_dir / "browser" / "profiles",
         headless=settings.douyin_browser_headless,
     )
+    douyin_dm_service = DouyinDmService(_douyin_login_state)
     douyin_monitor_repository = DouyinMonitorRepository(db_sessionmaker, settings.data_dir)
     douyin_monitor_service = DouyinMonitorService(
         douyin_monitor_repository, douyin_fetcher, notifier=weread_notifier
@@ -442,5 +445,6 @@ def build_runtime(settings: Settings) -> Runtime:
         tiktok_monitor_service=tiktok_monitor_service,
         tiktok_monitor_scheduler=tiktok_monitor_scheduler,
         tiktok_fetcher=tiktok_fetcher,
+        douyin_dm_service=douyin_dm_service,
         db_engine=db_engine,
     )

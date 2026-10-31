@@ -13,6 +13,8 @@ from flowpulse.modules.douyin.monitoring import (
     get_douyin_monitor_scheduler,
     get_douyin_monitor_service,
 )
+from flowpulse.modules.douyin.dm import get_douyin_dm_service
+from flowpulse.modules.douyin.dm import router as douyin_dm_router
 from flowpulse.modules.douyin.monitoring import router as douyin_router
 from flowpulse.modules.channels import get_channels_service
 from flowpulse.modules.tiktok.monitoring import (
@@ -109,6 +111,7 @@ def create_app() -> FastAPI:
     app.include_router(xhs_monitor_router, dependencies=[Depends(require_auth)])
     app.include_router(xhs_dm_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_router, dependencies=[Depends(require_auth)])
+    app.include_router(douyin_dm_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_publish_router, dependencies=[Depends(require_auth)])
     app.include_router(downloads_router, dependencies=[Depends(require_auth)])
     app.include_router(reports_router, dependencies=[Depends(require_auth)])
@@ -153,6 +156,7 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_tiktok_monitor_service] = lambda: runtime.tiktok_monitor_service
     app.dependency_overrides[get_tiktok_monitor_scheduler] = lambda: runtime.tiktok_monitor_scheduler
     app.dependency_overrides[get_tiktok_fetcher] = lambda: runtime.tiktok_fetcher
+    app.dependency_overrides[get_douyin_dm_service] = lambda: runtime.douyin_dm_service
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service
