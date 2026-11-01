@@ -86,7 +86,7 @@
 - [x] T1.2 增量扫描逻辑：首扫基线只入库不推送、note_id 全局去重、include/exclude 标题过滤；简化实现确定性到期（未做抖动散布，单实例低目标量下暂不需要）
 - [x] T1.3 `fp_xhs_contents` 记录表 + 前端「作品监控」页（/xhs/monitor，目标管理/立即扫描/暂停恢复、作品分页表、来源筛选）+ 新作品汇总通知走现有 notify；菜单种子与前端兜底已加「作品监控」项（存量库需在设置页重置菜单或手插）
 - [x] T1.4 批量采集：关键词/创作者批量 job、媒体下载与 Excel 导出**现有 jobs 框架已覆盖**（type=search/user/notes），无需扩展
-- [ ] T1.5 新作品/评论监控 RSS 输出（通知推送已接；RSS 生成复用 weread 思路，暂缓）
+- [x] T1.5 监控 RSS 输出（2026-10-31）：`/api/rss/monitors.xml?platform=&monitor_id=` 聚合四平台监控作品为一条 RSS（最近 50 条按发现时间倒序，复用 weread 的生成思路），支持 RSS 阅读器经 `?token=` 订阅
 - 补充：console 新增 `xhs-monitor-scan` 任务（到期目标扫描一次）；配置 `XHS_MONITOR_*`（开关/轮询/默认周期）
 - 验收：创建关键词监控 → 后台调度自动到期扫描（未登录时优雅记录 error）→ 登录后即增量入库并推送通知；158 项测试全绿（新增 10 项），页面浏览器实测通过。
 
@@ -111,7 +111,7 @@
 - [x] T4.3 写操作风控闸：`modules/platforms/risk.py`（滚动小时窗口/日配额、失败冷却阶梯 30m→24h、跨午夜安静时段；状态落 data/risk/state.json）——已接入抖音发布队列与小红书私信发送：preflight 拦截保持原状态并写明原因，成功/失败回写计数与冷却
 - [x] T4.1 小红书私信只读同步：`modules/xhs/dm/`（reader 移植 creatorhub xhs_im.py：/chat 页内第一方 fetch 观察会话与历史，免签名免二次 WS）+ API（conversations/messages）；消息中心页升级双 Tab（任务动态 | 私信），会话列表+未读徽标+消息抽屉
 - [x] T4.2 自动回复规则与审核草稿 + **自动发送（2026-10-30 收尾）**：`fp_xhs_dm_rules/fp_xhs_dm_drafts`（迁移 0011 + 0013 加 error/sent_at 列）——未读消息按关键词规则生成 pending 草稿（去重）→ 页面通过/拒绝 → **「发送」按钮走浏览器 exactly-once 发送**（移植 xhs_dm.py 核心语义：气泡基线计数、dispatch 分界、写接口响应证据/气泡增量双重确认、write_uncertain 不重发），风控闸前置
-- [x] T4.4 抖音私信（2026-10-31）：`modules/douyin/dm/`——protocol 整体移植（protobuf 定向解析/编码、cmd 2043 会话快照 + cmd 301 历史 + cmd 100/609 请求构造）+ frontier WS（access_key=md5(fpid+appKey+uid+salt)、PushFrame→NewMessageNotify 解码含 gzip/心跳）+ 服务（curl_cffi 纯协议直连，无浏览器无签名）；API：会话快照/历史/实时接收测试入口。**消息中心前端接入与实时常驻任务留待需要时补**（协议与服务层已就绪并有测试）
+- [x] T4.4 抖音私信（2026-10-31）：`modules/douyin/dm/`——protocol 整体移植（protobuf 定向解析/编码、cmd 2043 会话快照 + cmd 301 历史 + cmd 100/609 请求构造）+ frontier WS（access_key=md5(fpid+appKey+uid+salt)、PushFrame→NewMessageNotify 解码含 gzip/心跳）+ 服务（curl_cffi 纯协议直连，无浏览器无签名）；API：会话快照/历史/实时接收测试入口。消息中心前端已于 2026-10-31 接入（私信 Tab 小红书/抖音双平台切换，会话列表+消息抽屉，纯协议直连）
 - 验收：219 项测试全绿（T4.4 新增 9 项：信封编解码往返、access_key、构造 PushFrame/2043 响应的解码与解析、gzip 帧、心跳帧忽略、FakeDmService 链路）；真实私信数据待用户登录抖音后人工确认。
 
 ### Phase 5 — 快手 / 视频号 / TikTok（独立增量，按需启动）🚧 T5.1 快手 + T5.2 视频号 + T5.4 报表完成

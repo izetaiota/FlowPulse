@@ -22,6 +22,7 @@ from flowpulse.modules.tiktok.monitoring import TiktokMonitorRepository, TiktokM
 from flowpulse.modules.douyin.account import DouyinAccountService
 from flowpulse.modules.douyin.dm import DouyinDmService
 from flowpulse.modules.events import EventCenter
+from flowpulse.modules.monitors_rss import get_rss_repositories
 from flowpulse.modules.douyin.browser import DouyinBrowserFetcher
 from flowpulse.modules.douyin.monitoring import (
     DouyinMonitorRepository,
@@ -108,6 +109,10 @@ class Runtime:
     douyin_dm_service: DouyinDmService
     event_center: EventCenter
     db_engine: object | None = None
+
+    def rss_repositories(self):
+        return (self.xhs_monitor_service.repository, self.douyin_monitor_service.repository,
+                self.ks_monitor_service.repository, self.tiktok_monitor_service.repository)
 
     async def aclose(self) -> None:
         """释放与调度循环无关的资源（HTTP 客户端、浏览器驱动、数据库连接池）。"""

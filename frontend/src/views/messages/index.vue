@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { queueApi, type QueueItem } from "@/api/queue";
 import { dmApi, type DmConversation, type DmDraft, type DmMessage, type DmRule } from "@/api/dm";
+import { douyinDmApi, type DouyinDmConversation } from "@/api/douyin";
 
 const activeTab = ref("tasks");
 watch(activeTab, (tab) => {
@@ -11,7 +12,57 @@ watch(activeTab, (tab) => {
   }
 });
 
-// ---- 私信（小红书） ----
+// ---- 私信（平台切换：小红书 / 抖音） ----
+const dmPlatform = ref<"xhs" | "douyin">("xhs");
+const douyinConversations = ref<DouyinDmConversation[]>([]);
+const douyinDmMessage = ref("");
+const douyinDmLoading = ref(false);
+
+async function loadDouyinConversations() {
+  douyinDmLoading.value = true;
+  try {
+    const result = await douyinDmApi.conversations();
+    douyinConversations.value = result.conversations;
+    douyinDmMessage.value = result.message;
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    douyinDmMessage.value = detail || "抖音会话同步失败";
+    douyinConversations.value = [];
+  } finally {
+    douyinDmLoading.value = false;
+  }
+}
+
+async function openDouyinMessages(conv: DouyinDmConversation) {
+  messagesPeer.value = `抖音 · ${conv.peer_uid}`;
+  messagesVisible.value = true;
+  messagesLoading.value = true;
+  try {
+    const result = await douyinDmApi.messages(conv.conv_id, conv.conv_short_id);
+    const selfUid = result.self_uid;
+    messages.value = result.messages.map((m) => ({
+      ...m,
+      direction: m.sender_uid === selfUid ? "out" : "in",
+    })) as unknown as typeof messages.value;
+  } catch {
+    messages.value = [];
+    ElMessage.error("抖音消息加载失败");
+  } finally {
+    messagesLoading.value = false;
+  }
+}
+
+function dmTimeTs(ts: number): string {
+  if (!ts) return "—";
+  return new Date(ts * 1000).toISOString().replace("T", " ").slice(5, 16);
+}
+
+watch(dmPlatform, (platform) => {
+  if (platform === "douyin" && !douyinConversations.value.length && !douyinDmLoading.value) {
+    loadDouyinConversations();
+  }
+});
+
 const conversations = ref<DmConversation[]>([]);
 const dmLoading = ref(false);
 const dmMessage = ref("");
@@ -259,14 +310,25 @@ onUnmounted(() => {
       <el-card shadow="never" v-loading="dmLoading">
         <template #header>
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <span class="font-bold">会话列表（小红书）</span>
-              <span v-if="dmMessage" class="ml-3 text-xs text-slate-400">{{ dmMessage }}</span>
+            <div class="flex items-center gap-3">
+              <span class="font-bold">会话列表</span>
+              <el-radio-group v-model="dmPlatform" size="small">
+                <el-radio-button value="xhs">小红书</el-radio-button>
+                <el-radio-button value="douyin">抖音</el-radio-button>
+              </el-radio-group>
+              <span v-if="dmMessage && dmPlatform === 'xhs'" class="text-xs text-slate-400">{{ dmMessage }}</span>
+              <span v-if="douyinDmMessage && dmPlatform === 'douyin'" class="text-xs text-slate-400">{{ douyinDmMessage }}</span>
             </div>
-            <el-button size="small" @click="loadConversations" :loading="dmLoading">同步会话</el-button>
+            <el-button
+              size="small"
+              :loading="dmPlatform === 'xhs' ? dmLoading : douyinDmLoading"
+              @click="dmPlatform === 'xhs' ? loadConversations() : loadDouyinConversations()"
+            >
+              同步会话
+            </el-button>
           </div>
         </template>
-        <el-table :data="conversations" size="small">
+        <el-table v-if="dmPlatform === 'xhs'" :data="conversations" size="small">
           <el-table-column prop="peer_nickname" label="对方" min-width="120" />
           <el-table-column prop="last_text" label="最近消息" min-width="220" show-overflow-tooltip />
           <el-table-column label="未读" width="70">
@@ -285,6 +347,22 @@ onUnmounted(() => {
           </el-table-column>
           <template #empty>
             <el-empty description="点击「同步会话」拉取小红书私信（需已登录小红书）" />
+          </template>
+        </el-table>
+
+        <el-table v-else :data="douyinConversations" size="small" v-loading="douyinDmLoading">
+          <el-table-column prop="peer_uid" label="对方 UID" min-width="140" />
+          <el-table-column prop="last_text" label="最近消息" min-width="220" show-overflow-tooltip />
+          <el-table-column label="时间" width="130">
+            <template #default="{ row }">{{ dmTimeTs(row.last_time) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="90" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="openDouyinMessages(row)">查看</el-button>
+            </template>
+          </el-table-column>
+          <template #empty>
+            <el-empty description="点击「同步会话」拉取抖音私信（需已登录抖音，纯协议直连）" />
           </template>
         </el-table>
       </el-card>

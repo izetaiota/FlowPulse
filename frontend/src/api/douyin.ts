@@ -105,3 +105,41 @@ export const douyinMonitorApi = {
     }>,
   status: () => client.get("/v1/douyin/monitoring/status") as unknown as Promise<Record<string, unknown>>,
 };
+
+// ---- 抖音私信（T4.4 前端接入） ----
+
+export interface DouyinDmConversation {
+  conv_id: string;
+  peer_uid: string;
+  peer_sec_uid: string;
+  last_text: string;
+  last_time: number;
+  conv_short_id: string;
+  ticket: string;
+}
+
+export interface DouyinDmMessage {
+  conv_id: string;
+  server_msg_id: string;
+  msg_type: number;
+  sender_uid: string;
+  text: string;
+  create_time: number;
+}
+
+export const douyinDmApi = {
+  conversations: () =>
+    client.get("/v1/douyin/dm/conversations") as unknown as Promise<{
+      ok: boolean;
+      conversations: DouyinDmConversation[];
+      message: string;
+    }>,
+  messages: (convId: string, convShortId: string) =>
+    client.get(`/v1/douyin/dm/conversations/${convId}/messages`, {
+      params: { conv_short_id: convShortId },
+    }) as unknown as Promise<{
+      ok: boolean;
+      messages: DouyinDmMessage[];
+      self_uid: string;
+    }>,
+};
