@@ -23,6 +23,8 @@
   fp_tiktok_monitors       TikTok 关键词监控目标（原生签名直连）
   fp_tiktok_contents       TikTok 监控作品记录（aweme_id 全局去重）
   fp_xhs_dm_drafts         小红书私信建议回复草稿（人工审核 → 浏览器发送）
+  fp_webhook_subscriptions Webhook 事件订阅（HMAC 签名投递）
+  fp_webhook_events        Webhook 事件 outbox（pending→delivered/failed）
 """
 
 from __future__ import annotations
@@ -483,3 +485,32 @@ class XhsDmDraftRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class WebhookSubscriptionRow(Base):
+    """Webhook 事件订阅：URL + HMAC 密钥 + 事件类型过滤（空 = 全部）。"""
+
+    __tablename__ = "fp_webhook_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    url: Mapped[str] = mapped_column(Text, default="")
+    secret: Mapped[str] = mapped_column(Text, default="")
+    events: Mapped[str] = mapped_column(Text, default="")  # 逗号分隔；空 = 全部
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class WebhookEventRow(Base):
+    """Webhook 事件 outbox：pending → delivered / partial / failed（重试 ≤5）。"""
+
+    __tablename__ = "fp_webhook_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_type: Mapped[str] = mapped_column(String(64), default="")
+    title: Mapped[str] = mapped_column(Text, default="")
+    payload: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_detail: Mapped[str] = mapped_column(Text, default="")
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

@@ -71,10 +71,12 @@ class XhsMonitorService:
         repository: XhsMonitorRepository,
         xhs_service: Any,
         notifier: WebhookNotifier | None = None,
+        event_center=None,
     ) -> None:
         self.repository = repository
         self.xhs_service = xhs_service
         self.notifier = notifier
+        self.event_center = event_center
 
     # ---- 拉取 ----
 
@@ -142,6 +144,12 @@ class XhsMonitorService:
                 )
                 self.repository.mark_notified(new_ids)
                 notified = True
+                if self.event_center is not None:
+                    self.event_center.emit(
+                        "monitor.new_works",
+                        f"小红书监控新作品（{monitor_label}）",
+                        {"platform": "xhs", "monitor": monitor_label, "titles": titles[:10]},
+                    )
             except Exception:  # noqa: BLE001 - 推送失败不影响入库结果
                 pass
 

@@ -14,6 +14,8 @@ from flowpulse.modules.douyin.monitoring import (
     get_douyin_monitor_service,
 )
 from flowpulse.modules.douyin.dm import get_douyin_dm_service
+from flowpulse.modules.events import get_event_center
+from flowpulse.modules.events import router as events_router
 from flowpulse.modules.douyin.dm import router as douyin_dm_router
 from flowpulse.modules.douyin.monitoring import router as douyin_router
 from flowpulse.modules.channels import get_channels_service
@@ -85,8 +87,10 @@ def create_app() -> FastAPI:
         runtime.douyin_publish_service.start()
         runtime.ks_monitor_scheduler.start()
         runtime.tiktok_monitor_scheduler.start()
+        runtime.event_center.start()
         yield
         await runtime.douyin_publish_service.stop()
+        await runtime.event_center.stop()
         await runtime.tiktok_monitor_scheduler.stop()
         await runtime.ks_monitor_scheduler.stop()
         await runtime.douyin_monitor_scheduler.stop()
@@ -112,6 +116,7 @@ def create_app() -> FastAPI:
     app.include_router(xhs_dm_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_dm_router, dependencies=[Depends(require_auth)])
+    app.include_router(events_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_publish_router, dependencies=[Depends(require_auth)])
     app.include_router(downloads_router, dependencies=[Depends(require_auth)])
     app.include_router(reports_router, dependencies=[Depends(require_auth)])
@@ -157,6 +162,7 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_tiktok_monitor_scheduler] = lambda: runtime.tiktok_monitor_scheduler
     app.dependency_overrides[get_tiktok_fetcher] = lambda: runtime.tiktok_fetcher
     app.dependency_overrides[get_douyin_dm_service] = lambda: runtime.douyin_dm_service
+    app.dependency_overrides[get_event_center] = lambda: runtime.event_center
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository
     app.state.xhs_service = runtime.xhs_service

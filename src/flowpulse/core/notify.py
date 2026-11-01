@@ -45,6 +45,10 @@ class WebhookNotifier:
             }
         if "open.feishu.cn" in url:
             return {"msg_type": "text", "content": {"text": f"{title}\n{message}"}}
+        if "api.day.app" in url or "/bark" in url:  # Bark：POST JSON 到设备 key URL
+            return {"title": title, "body": message}
+        if "api.telegram.org" in url:  # Telegram sendMessage（chat_id 在 URL 查询参数里）
+            return {"text": f"{title}\n{message}"}
         return {"title": title, "text": message}
 
     def _image_payload(self, url: str, title: str, message: str, image_base64: str) -> dict:

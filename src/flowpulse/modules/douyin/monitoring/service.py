@@ -36,10 +36,12 @@ class DouyinMonitorService:
         repository: DouyinMonitorRepository,
         fetcher: DouyinBrowserFetcher,
         notifier: WebhookNotifier | None = None,
+        event_center=None,
     ) -> None:
         self.repository = repository
         self.fetcher = fetcher
         self.notifier = notifier
+        self.event_center = event_center
 
     async def _fetch(self, monitor: dict) -> tuple[bool, str, list[dict]]:
         if monitor["kind"] == "creator":
@@ -100,6 +102,12 @@ class DouyinMonitorService:
                 )
                 self.repository.mark_notified(new_ids)
                 notified = True
+                if self.event_center is not None:
+                    self.event_center.emit(
+                        "monitor.new_works",
+                        f"抖音监控新作品（{monitor_label}）",
+                        {"platform": "douyin", "monitor": monitor_label, "titles": titles[:10]},
+                    )
             except Exception:  # noqa: BLE001 - 推送失败不影响入库
                 pass
 

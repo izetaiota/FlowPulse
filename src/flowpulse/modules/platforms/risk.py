@@ -37,6 +37,7 @@ class RiskGate:
     def __init__(
         self,
         state_path: Path,
+        event_center=None,
         enabled: bool = True,
         hourly_limit: int = 10,
         daily_limit: int = 50,
@@ -44,6 +45,7 @@ class RiskGate:
     ):
         self.state_path = state_path
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
+        self.event_center = event_center
         self.enabled = enabled
         self.hourly_limit = max(0, int(hourly_limit))
         self.daily_limit = max(0, int(daily_limit))
@@ -141,6 +143,13 @@ class RiskGate:
         cooldown = COOLDOWN_LADDER[index]
         account["paused_until"] = _now() + cooldown
         self._save(state)
+        if self.event_center is not None:
+            self.event_center.emit(
+                "risk.cooldown",
+                f"写操作进入冷却（{platform}/{account_key}）",
+                {"platform": platform, "account": account_key,
+                 "consecutive_failures": account["consecutive_failures"], "cooldown_seconds": cooldown},
+            )
         return cooldown
 
     def clear(self, platform: str, account_key: str) -> None:

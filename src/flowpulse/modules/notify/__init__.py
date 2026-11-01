@@ -163,7 +163,9 @@ def _env_channels() -> list[dict]:
     for url in urls:
         if url and url not in seen:
             seen.add(url)
-            kind = "飞书" if "open.feishu.cn" in url else "钉钉" if "oapi.dingtalk.com" in url else "自定义"
+            kind = ("飞书" if "open.feishu.cn" in url else "钉钉" if "oapi.dingtalk.com" in url
+            else "Bark" if "api.day.app" in url or "/bark" in url
+            else "Telegram" if "api.telegram.org" in url else "自定义")
             result.append({"name": f"环境变量 · {kind}", "url": url, "enabled": True, "source": "env"})
     return result
 

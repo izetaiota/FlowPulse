@@ -123,12 +123,13 @@
 - T5.1/T5.2 验收：204 项测试全绿（快手 7 项 + 视频号 4 项）；真实 Chrome 验证三平台监控页、视频号页与报表页；真实数据待用户扫码后人工确认。
 - 验收：每平台最小闭环（登录+采集列表+入库）。
 
-### Phase 6 — 运营增强（可选）
+### Phase 6 — 运营增强（可选）🚧 T6.1 + T6.2 完成（2026-10-31）
 
-- [ ] T6.1 Webhook 事件中心（outbox + HMAC 签名 + 重试，事件：新作品/风控/任务完成）
-- [ ] T6.2 通知渠道补 Bark/Telegram（现有 notify 框架加渠道类型）
+- [x] T6.1 Webhook 事件中心（2026-10-31）：`modules/events/`——outbox（fp_webhook_events/subscriptions，迁移 0015）+ HMAC-SHA256 签名投递（x-flowpulse-signature-256 头）+ 后台 15s 循环重试（≤5 次，partial 状态续投）；事件接入：monitor.new_works（xhs/douyin 新作品）、risk.cooldown（风控冷却）；API：订阅 CRUD / 事件列表 / 手动 dispatch
+- [x] T6.2 通知渠道补 Bark/Telegram（2026-10-31）：WebhookNotifier payload 按 URL 自适应（api.day.app→Bark JSON、api.telegram.org→sendMessage JSON 含 chat_id 查询参数）；环境渠道类型识别同步扩展，零数据库变更
 - [ ] T6.3 代理池管理（多账号隔离时才需要）
 - [ ] T6.4 自动评论/账号动作（关注/取关）写队列——**暂不处理**（2026-10-30 决策，风控与合规敏感；后续要做得显式立项）
+- 验收：224 项测试全绿（P6 新增 5 项：渠道 payload 类型、outbox 无订阅跳过、订阅 CRUD 与事件过滤、HMAC 签名与 5 次重试到 failed、API 流程）。
 
 ---
 

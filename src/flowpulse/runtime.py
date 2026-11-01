@@ -21,6 +21,7 @@ from flowpulse.modules.tiktok.fetcher import TiktokFetcher
 from flowpulse.modules.tiktok.monitoring import TiktokMonitorRepository, TiktokMonitorService
 from flowpulse.modules.douyin.account import DouyinAccountService
 from flowpulse.modules.douyin.dm import DouyinDmService
+from flowpulse.modules.events import EventCenter
 from flowpulse.modules.douyin.browser import DouyinBrowserFetcher
 from flowpulse.modules.douyin.monitoring import (
     DouyinMonitorRepository,
@@ -105,6 +106,7 @@ class Runtime:
     tiktok_monitor_scheduler: MonitorScheduler
     tiktok_fetcher: TiktokFetcher
     douyin_dm_service: DouyinDmService
+    event_center: EventCenter
     db_engine: object | None = None
 
     async def aclose(self) -> None:
@@ -210,6 +212,9 @@ def build_runtime(settings: Settings) -> Runtime:
         client, [settings.weread_webhook_url, settings.weread_notify_channels],
         store=notify_store,
     )
+
+    # Webhook 事件中心（P6-T6.1）：outbox + HMAC 投递
+    event_center = EventCenter(db_sessionmaker, settings.data_dir / "events", client)
     menu_repository = MenuRepository(
         db_sessionmaker,  # DATABASE_URL 模式走 fp_app_menus 表，否则 data/app/menus.json
         settings.data_dir / "app" / "menus.json",
@@ -276,7 +281,8 @@ def build_runtime(settings: Settings) -> Runtime:
     # 小红书作品监控（P1）：目标存储 + 扫描服务 + 到期调度
     xhs_monitor_repository = XhsMonitorRepository(db_sessionmaker, settings.data_dir)
     xhs_monitor_service = XhsMonitorService(
-        xhs_monitor_repository, xhs_service, notifier=weread_notifier
+        xhs_monitor_repository, xhs_service, notifier=weread_notifier,
+        event_center=event_center,
     )
     xhs_monitor_scheduler = XhsMonitorScheduler(
         xhs_monitor_service,
@@ -307,9 +313,11 @@ def build_runtime(settings: Settings) -> Runtime:
         headless=settings.douyin_browser_headless,
     )
     douyin_dm_service = DouyinDmService(_douyin_login_state)
+
     douyin_monitor_repository = DouyinMonitorRepository(db_sessionmaker, settings.data_dir)
     douyin_monitor_service = DouyinMonitorService(
-        douyin_monitor_repository, douyin_fetcher, notifier=weread_notifier
+        douyin_monitor_repository, douyin_fetcher, notifier=weread_notifier,
+        event_center=event_center,
     )
     douyin_monitor_scheduler = MonitorScheduler(
         douyin_monitor_service,
@@ -326,6 +334,7 @@ def build_runtime(settings: Settings) -> Runtime:
         hourly_limit=settings.risk_hourly_limit,
         daily_limit=settings.risk_daily_limit,
         quiet_hours=settings.risk_quiet_hours,
+        event_center=event_center,
     )
     douyin_publish_service = DouyinPublishService(
         DouyinPublishStore(db_sessionmaker, settings.data_dir),
@@ -446,5 +455,6 @@ def build_runtime(settings: Settings) -> Runtime:
         tiktok_monitor_scheduler=tiktok_monitor_scheduler,
         tiktok_fetcher=tiktok_fetcher,
         douyin_dm_service=douyin_dm_service,
+        event_center=event_center,
         db_engine=db_engine,
     )
