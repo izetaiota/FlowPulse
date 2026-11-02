@@ -17,10 +17,18 @@ English | [中文](./README.zh.md)
 | Capability | Directory | Status |
 | --- | --- | --- |
 | Official Account RSS (WeRead channel) | `src/flowpulse/modules/weread/` | ✅ Working |
-| Douyin transcription (parsing + speech-to-text) | `src/flowpulse/modules/douyin/` | ✅ Working |
-| Xiaohongshu workbench (crawling / download / export) | `src/flowpulse/modules/xhs/` | ✅ Working |
-| Workbench frontend (Vue 3 + Element Plus) | `frontend/` | 🚧 In progress |
-| Multi-platform account center / monitoring / publishing / DM | Planned | 📋 See the [migration plan](docs/CREATORHUB_FEATURE_MIGRATION_PLAN.md) (Chinese) |
+| Douyin (transcription, monitoring, publishing, DM) | `src/flowpulse/modules/douyin/` | ✅ Working |
+| Xiaohongshu (crawling, download, DM, publishing) | `src/flowpulse/modules/xhs/` | ✅ Working |
+| Kuaishou (monitoring / collection) | `src/flowpulse/modules/ks/` | ✅ Working |
+| WeChat Channels (own-account works/data) | `src/flowpulse/modules/channels/` | ✅ Working |
+| TikTok (keyword monitoring / search) | `src/flowpulse/modules/tiktok/` | ✅ Working |
+| Unified account center + task queue | `src/flowpulse/modules/accounts/` `queue/` | ✅ Working |
+| Universal link download + media library | `src/flowpulse/modules/downloader/` | ✅ Working |
+| Multi-platform works monitoring (with RSS) | `modules/{xhs,douyin,ks,tiktok}/monitoring/` | ✅ Working |
+| Webhook event center + multi-channel notifications | `src/flowpulse/modules/events/` `notify/` | ✅ Working |
+| Write-operation risk control (quotas / cooldown / quiet hours) | `src/flowpulse/modules/platforms/risk.py` | ✅ Working |
+| Reports center (10 xlsx exports) | `src/flowpulse/modules/reports/` | ✅ Working |
+| Workbench frontend (Vue 3 + Element Plus) | `frontend/` | ✅ Working |
 
 **Quick start:**
 

@@ -18,9 +18,18 @@
 | --- | --- | --- |
 | 公众号订阅 RSS（微信读书通道） | `src/flowpulse/modules/weread/` | ✅ 可用 |
 | 抖音转写（解析 + 语音转写） | `src/flowpulse/modules/douyin/` | ✅ 可用 |
-| 小红书工作台（抓取 / 下载 / 导出） | `src/flowpulse/modules/xhs/` | ✅ 可用 |
-| 工作台前端（Vue3 + Element Plus） | `frontend/` | 🚧 持续完善 |
-| 多平台账号中心 / 监控采集 / 发布 / 私信 | 规划中 | 📋 见 [迁移计划](docs/CREATORHUB_FEATURE_MIGRATION_PLAN.md) |
+| 小红书工作台（抓取 / 下载 / 私信 / 发布） | `src/flowpulse/modules/xhs/` | ✅ 可用 |
+| 抖音（监控 / 发布 / 私信协议直连） | `src/flowpulse/modules/douyin/` | ✅ 可用 |
+| 快手（监控 / 采集） | `src/flowpulse/modules/ks/` | ✅ 可用 |
+| 视频号（本账号作品/数据） | `src/flowpulse/modules/channels/` | ✅ 可用 |
+| TikTok（关键词监控 / 搜索） | `src/flowpulse/modules/tiktok/` | ✅ 可用 |
+| 统一账号中心 + 任务队列 | `src/flowpulse/modules/accounts/` `queue/` | ✅ 可用 |
+| 通用链接下载 + 素材库 | `src/flowpulse/modules/downloader/` | ✅ 可用 |
+| 作品监控（四平台 + RSS 输出） | `modules/{xhs,douyin,ks,tiktok}/monitoring/` | ✅ 可用 |
+| Webhook 事件中心 + 多渠道通知 | `src/flowpulse/modules/events/` `notify/` | ✅ 可用 |
+| 写操作风控闸（配额 / 冷却 / 安静时段） | `src/flowpulse/modules/platforms/risk.py` | ✅ 可用 |
+| 报表中心（十类 xlsx 导出） | `src/flowpulse/modules/reports/` | ✅ 可用 |
+| 工作台前端（Vue3 + Element Plus） | `frontend/` | ✅ 可用 |
 
 **快速开始：**
 

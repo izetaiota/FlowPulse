@@ -1,5 +1,13 @@
 <script setup lang="ts">
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { accountApi } from "@/api/accounts";
+import { monitorApi } from "@/api/monitor";
+import { douyinMonitorApi } from "@/api/douyin";
+import { ksMonitorApi } from "@/api/ks";
+import { tiktokApi } from "@/api/tiktok";
+import { queueApi } from "@/api/queue";
+import { downloadApi } from "@/api/download";
 
 const router = useRouter();
 
@@ -11,40 +19,83 @@ interface Stat {
   color: string;
 }
 
-// 占位数据：待后端驾驶舱 API 接入后替换
-const stats: Stat[] = [
-  { label: "待回复消息", value: "12", trend: "条未读", icon: "ChatDotRound", color: "#f59e0b" },
-  { label: "今日阅读", value: "8,432", trend: "+12.4%", icon: "View", color: "#10b981" },
-  { label: "今日投流消耗", value: "¥1,208", icon: "Coin", color: "#6d5ef2" },
-  { label: "整体 ROI", value: "3.2×", icon: "TrendCharts", color: "#0ea5e9" },
-];
+const stats = ref<Stat[]>([]);
+const loading = ref(false);
+
+const recentItems = ref<Array<{ time: string; text: string; type: string }>>([]);
+const totalMonitors = ref(0);
+const totalWorks = ref(0);
+
+async function loadStats() {
+  loading.value = true;
+  try {
+    const [accounts, xhsMonitors, douyinMonitors, ksMonitors, tiktokMonitors, queue, downloads] =
+      await Promise.all([
+        accountApi.list().catch(() => ({ accounts: [] as never[] })),
+        monitorApi.list().catch(() => ({ monitors: [] as never[] })),
+        douyinMonitorApi.list().catch(() => ({ monitors: [] as never[] })),
+        ksMonitorApi.list().catch(() => ({ monitors: [] as never[] })),
+        tiktokApi.list().catch(() => ({ monitors: [] as never[] })),
+        queueApi.list().catch(() => ({ items: [] as never[] })),
+        downloadApi.list().catch(() => ({ tasks: [] as never[] })),
+      ]);
+
+    const monitorLists = [xhsMonitors.monitors, douyinMonitors.monitors, ksMonitors.monitors, tiktokMonitors.monitors];
+    totalMonitors.value = monitorLists.reduce((sum, list) => sum + list.length, 0);
+    totalWorks.value = monitorLists.reduce(
+      (sum, list) => sum + list.reduce((s: number, m: { content_count?: number }) => s + (m.content_count || 0), 0),
+      0,
+    );
+
+    const activeAccounts = accounts.accounts.filter((a: { status: string }) => a.status === "active").length;
+    const runningTasks = queue.items.filter(
+      (t: { status: string }) => t.status === "pending" || t.status === "running",
+    ).length;
+    const completedDownloads = downloads.tasks.filter(
+      (t: { status: string }) => t.status === "completed",
+    ).length;
+
+    stats.value = [
+      { label: "平台账号", value: String(activeAccounts), trend: `共 ${accounts.accounts.length} 个`, icon: "Connection", color: "#6d5ef2" },
+      { label: "监控目标", value: String(totalMonitors.value), trend: `${totalWorks.value} 条作品`, icon: "Monitor", color: "#10b981" },
+      { label: "进行中任务", value: String(runningTasks), trend: `${queue.items.length} 条记录`, icon: "VideoPlay", color: "#f59e0b" },
+      { label: "已完成下载", value: String(completedDownloads), trend: `${downloads.tasks.length} 条任务`, icon: "Download", color: "#0ea5e9" },
+    ];
+
+    // 最近动态：跨平台作品 + 队列最近任务
+    const items: Array<{ time: string; text: string; type: string }> = [];
+    for (const item of queue.items.slice(0, 8)) {
+      items.push({
+        time: item.updated_at.replace("T", " ").slice(5, 16),
+        text: `${item.kind}：${item.title || item.id}`,
+        type: item.status === "completed" ? "success" : item.status === "failed" ? "warning" : "publish",
+      });
+    }
+    recentItems.value = items;
+  } finally {
+    loading.value = false;
+  }
+}
 
 const quickActions = [
-  { title: "新建选题", desc: "记录一个灵感", icon: "Calendar", path: "/topics" },
-  { title: "创作内容", desc: "一份原稿多平台", icon: "EditPen", path: "/content/create" },
-  { title: "素材库", desc: "上传与管理素材", icon: "FolderOpened", path: "/materials" },
-  { title: "消息中心", desc: "回复粉丝互动", icon: "ChatDotRound", path: "/messages" },
-];
-
-const todos = [
-  { time: "今天 18:00", text: "《秋日好物清单》定时分发到小红书", type: "publish" },
-  { time: "2 小时前", text: "公众号授权即将过期，请重新绑定", type: "warning" },
-  { time: "今天", text: "3 条小红书私信待回复（意向咨询）", type: "message" },
-  { time: "昨日", text: "抖音《收纳教程》进入 7 日爆款榜", type: "success" },
+  { title: "作品监控", desc: "多平台定时扫描", icon: "Monitor", path: "/xhs/monitor" },
+  { title: "链接下载", desc: "粘贴文案一键下载", icon: "Download", path: "/materials" },
+  { title: "发布任务", desc: "抖音创作中心发布", icon: "Promotion", path: "/publish" },
+  { title: "私信中心", desc: "小红书/抖音会话", icon: "ChatDotRound", path: "/messages" },
 ];
 
 function todoTag(type: string): { label: string; kind: "warning" | "primary" | "success" | "info" } {
   switch (type) {
     case "warning":
-      return { label: "告警", kind: "warning" };
-    case "message":
-      return { label: "互动", kind: "primary" };
+      return { label: "失败", kind: "warning" };
     case "success":
-      return { label: "爆款", kind: "success" };
+      return { label: "完成", kind: "success" };
     default:
-      return { label: "发布", kind: "info" };
+      return { label: "进行中", kind: "info" };
   }
 }
+
+onMounted(loadStats);
 </script>
 
 <template>
@@ -54,17 +105,17 @@ function todoTag(type: string): { label: string; kind: "warning" | "primary" | "
       <div>
         <h2 class="fp-banner-title">繁杂交给系统，创作进入心流</h2>
         <p class="fp-banner-desc">
-          欢迎回到驾驶舱，这里汇总你的消息、内容与投流数据。当前数据为占位示例，待后端 API 接入。
+          五平台账号已接入统一管理；监控、采集、下载、发布与私信在后台自动运转。
         </p>
       </div>
-      <el-button type="primary" round @click="router.push('/content/create')">
-        <el-icon class="mr-1"><EditPen /></el-icon>
-        开始创作
+      <el-button type="primary" round @click="router.push('/xhs/monitor')">
+        <el-icon class="mr-1"><Monitor /></el-icon>
+        去监控
       </el-button>
     </div>
 
     <!-- 核心指标 -->
-    <el-row :gutter="16">
+    <el-row :gutter="16" v-loading="loading">
       <el-col v-for="stat in stats" :key="stat.label" :xs="12" :sm="12" :md="6">
         <el-card shadow="never" class="fp-stat-card">
           <div class="fp-stat-icon" :style="{ backgroundColor: stat.color + '1a', color: stat.color }">
@@ -98,17 +149,18 @@ function todoTag(type: string): { label: string; kind: "warning" | "primary" | "
         </el-card>
       </el-col>
 
-      <!-- 待办与动态 -->
+      <!-- 最近动态 -->
       <el-col :xs="24" :md="14">
-        <el-card shadow="never" class="h-full" header="待办与动态">
+        <el-card shadow="never" class="h-full" header="最近任务动态">
           <div class="space-y-3">
-            <div v-for="(todo, i) in todos" :key="i" class="fp-todo">
-              <el-tag :type="todoTag(todo.type).kind" size="small" effect="light" round>
-                {{ todoTag(todo.type).label }}
+            <div v-for="(item, i) in recentItems" :key="i" class="fp-todo">
+              <el-tag :type="todoTag(item.type).kind" size="small" effect="light" round>
+                {{ todoTag(item.type).label }}
               </el-tag>
-              <span class="fp-todo-text">{{ todo.text }}</span>
-              <span class="fp-todo-time">{{ todo.time }}</span>
+              <span class="fp-todo-text">{{ item.text }}</span>
+              <span class="fp-todo-time">{{ item.time }}</span>
             </div>
+            <el-empty v-if="!recentItems.length" description="暂无任务动态" :image-size="60" />
           </div>
         </el-card>
       </el-col>
@@ -174,7 +226,7 @@ function todoTag(type: string): { label: string; kind: "warning" | "primary" | "
 
 .fp-stat-trend {
   font-size: 12px;
-  color: #10b981;
+  color: #94a3b8;
   margin-top: 2px;
 }
 
