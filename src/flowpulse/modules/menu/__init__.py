@@ -32,6 +32,7 @@ DEFAULT_MENUS: list[dict] = [
     {"id": "reports", "title": "数据报表", "path": "/reports/content", "icon": "DataAnalysis"},
     {"id": "reports-content", "title": "内容大盘", "path": "/reports/content", "parent": "reports"},
     {"id": "reports-ads", "title": "投流大盘", "path": "/reports/ads", "parent": "reports"},
+    {"id": "admin", "title": "权限管理", "path": "/admin", "icon": "Lock"},
     {"id": "settings", "title": "系统设置", "path": "/settings", "icon": "Setting"},
 ]
 

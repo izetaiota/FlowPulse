@@ -1,6 +1,8 @@
 import client from "./client";
 
 export interface AuthSession {
+  roles?: string[];
+  perms?: string[];
   enabled: boolean;
   username: string;
 }

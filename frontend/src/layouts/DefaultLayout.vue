@@ -119,7 +119,7 @@ const menu = computed(() =>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item v-if="authStore.enabled" @click="handleLogout">
+                <el-dropdown-item @click="handleLogout">
                   退出登录
                 </el-dropdown-item>
               </el-dropdown-menu>

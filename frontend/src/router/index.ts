@@ -68,6 +68,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "视频号", icon: "VideoCameraFilled" },
       },
       {
+        path: "admin",
+        name: "admin",
+        component: () => import("@/views/admin/index.vue"),
+        meta: { title: "权限管理", icon: "Lock" },
+      },
+      {
         path: "transcribe",
         name: "transcribe",
         component: () => import("@/views/transcribe/index.vue"),
@@ -136,7 +142,8 @@ router.beforeEach(async (to) => {
   if (auth.enabled && !auth.token && !to.meta.public) {
     return { name: "login", query: { redirect: to.fullPath } };
   }
-  if (to.name === "login" && auth.isLoggedIn) {
+  // 仅在开启鉴权且已登录时弹回首页；鉴权关闭时允许查看登录页（用户主动退出后能看到）
+  if (to.name === "login" && auth.enabled && auth.token) {
     return { path: "/" };
   }
   return true;

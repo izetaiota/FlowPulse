@@ -18,6 +18,7 @@ export const FALLBACK_MENUS: MenuItemData[] = [
   { id: "reports", title: "数据报表", path: "/reports/content", icon: "DataAnalysis", parent: "", visible: true },
   { id: "reports-content", title: "内容大盘", path: "/reports/content", icon: "", parent: "reports", visible: true },
   { id: "reports-ads", title: "投流大盘", path: "/reports/ads", icon: "", parent: "reports", visible: true },
+  { id: "admin", title: "权限管理", path: "/admin", icon: "Lock", parent: "", visible: true },
   { id: "settings", title: "系统设置", path: "/settings", icon: "Setting", parent: "", visible: true },
 ];
 

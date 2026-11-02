@@ -14,6 +14,7 @@ from flowpulse.config import Settings
 from flowpulse.core.auth import AuthUserStore
 from flowpulse.core.crypto import CredentialCipher
 from flowpulse.core.notify import WebhookNotifier
+from flowpulse.core.rbac import build_enforcer
 from flowpulse.modules.accounts import AccountRepository, AccountService, WereadProvider, XhsProvider
 from flowpulse.modules.channels import ChannelsService, ChannelsStore
 from flowpulse.modules.tiktok.account import TiktokAccountService
@@ -21,6 +22,7 @@ from flowpulse.modules.tiktok.fetcher import TiktokFetcher
 from flowpulse.modules.tiktok.monitoring import TiktokMonitorRepository, TiktokMonitorService
 from flowpulse.modules.douyin.account import DouyinAccountService
 from flowpulse.modules.douyin.dm import DouyinDmService
+from flowpulse.modules.admin import get_rbac_deps
 from flowpulse.modules.events import EventCenter
 from flowpulse.modules.monitors_rss import get_rss_repositories
 from flowpulse.modules.douyin.browser import DouyinBrowserFetcher
@@ -108,6 +110,7 @@ class Runtime:
     tiktok_fetcher: TiktokFetcher
     douyin_dm_service: DouyinDmService
     event_center: EventCenter
+    rbac_enforcer: object | None = None
     db_engine: object | None = None
 
     def rss_repositories(self):
@@ -220,6 +223,12 @@ def build_runtime(settings: Settings) -> Runtime:
 
     # Webhook 事件中心（P6-T6.1）：outbox + HMAC 投递
     event_center = EventCenter(db_sessionmaker, settings.data_dir / "events", client)
+
+    # RBAC 权限引擎（casbin，可选依赖 pycasbin）
+    try:
+        rbac_enforcer = build_enforcer(db_sessionmaker, settings.data_dir)
+    except ImportError:
+        rbac_enforcer = None
     menu_repository = MenuRepository(
         db_sessionmaker,  # DATABASE_URL 模式走 fp_app_menus 表，否则 data/app/menus.json
         settings.data_dir / "app" / "menus.json",
@@ -461,5 +470,6 @@ def build_runtime(settings: Settings) -> Runtime:
         tiktok_fetcher=tiktok_fetcher,
         douyin_dm_service=douyin_dm_service,
         event_center=event_center,
+        rbac_enforcer=rbac_enforcer,
         db_engine=db_engine,
     )

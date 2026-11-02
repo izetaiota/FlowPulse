@@ -1,6 +1,6 @@
 # RBAC 菜单权限管理方案（Casbin 版）
 
-> 状态：设计定稿，未实施。按阶段推进，每阶段完成后在对应条目标 ✅。
+> 状态：✅ 已实施（2026-11-02）。核心引擎 + admin API + 前端管理页已落地。
 > 关联：`docs/WECHAT_WEREAD_RSS_PLAN.md`（模块计划）、`src/flowpulse/core/auth.py`（现有单账号鉴权）。
 
 ## 1. 背景与目标
@@ -180,23 +180,23 @@ def require_perm(code: str):
 
 ## 7. 实施阶段
 
-- [ ] **阶段 0：依赖与引擎接入**（半天）
+- [x] **阶段 0：依赖与引擎接入**（半天）
   pyproject 加 `pycasbin`；`core/rbac.py`（模型文本、CasbinSqlAdapter、build_enforcer、get_current_user、require_perm）；runtime 装配 + 单测（内存适配器验证 g 继承与 `*` 通配）。
   验收：单测覆盖 matcher 语义（通配/继承/拒绝），不影响现有行为。
 
-- [ ] **阶段 1：数据库迁移与种子**（半天）
+- [x] **阶段 1：数据库迁移与种子**（半天）
   Alembic 0004 + 种子 + 文件模式 policy.csv 初始化；`fp_users` 多行化后回归现有登录/改密测试。
   验收：`alembic upgrade head` 幂等；admin 登录行为不变；14 条菜单权限码回填。
 
-- [ ] **阶段 2：后端权限层落地**（1 天）
+- [x] **阶段 2：后端权限层落地**（1 天）
   session 接口扩展（roles/perms/menus 过滤）；管理接口（users/roles/perm-codes）；现有路由挂首批权限码；admin 角色全通。
   验收：非 admin 用户按码放行/403 的 API 测试全绿；撤掉角色后立即失去权限（不重登）。
 
-- [ ] **阶段 3：前端管理界面**（1 天）
+- [x] **阶段 3：前端管理界面**（1 天）
   v-perm 指令、menu/auth store 改造、用户/角色/菜单三页面、登录页不动。
   验收：双角色真机走查（超管见全部；受限用户菜单过滤、按钮隐藏、直调 API 403）。
 
-- [ ] **阶段 4：收尾**（半天）
+- [x] **阶段 4：收尾**（半天）
   全量测试、README 权限章节（角色初始化/改密/新增权限码流程）、文档勾选更新、提交。
 
 ## 8. 风险与注意事项

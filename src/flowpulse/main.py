@@ -6,6 +6,8 @@ from flowpulse.config import get_settings
 from flowpulse.core.auth import init_auth, require_auth
 from flowpulse.core.auth import router as auth_router
 from flowpulse.modules.accounts import get_account_service
+from flowpulse.modules.admin import get_rbac_deps
+from flowpulse.modules.admin import router as admin_router
 from flowpulse.modules.accounts import router as accounts_router
 from flowpulse.modules.douyin.api.routes import get_pipeline, get_repository, router
 from flowpulse.modules.douyin.monitoring import (
@@ -119,6 +121,7 @@ def create_app() -> FastAPI:
     app.include_router(douyin_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_dm_router, dependencies=[Depends(require_auth)])
     app.include_router(events_router, dependencies=[Depends(require_auth)])
+    app.include_router(admin_router, dependencies=[Depends(require_auth)])
     app.include_router(monitors_rss_router, dependencies=[Depends(require_auth)])
     app.include_router(douyin_publish_router, dependencies=[Depends(require_auth)])
     app.include_router(downloads_router, dependencies=[Depends(require_auth)])
@@ -166,6 +169,7 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_tiktok_fetcher] = lambda: runtime.tiktok_fetcher
     app.dependency_overrides[get_douyin_dm_service] = lambda: runtime.douyin_dm_service
     app.dependency_overrides[get_event_center] = lambda: runtime.event_center
+    app.dependency_overrides[get_rbac_deps] = lambda: (runtime.rbac_enforcer, None)
     app.dependency_overrides[get_rss_repositories] = runtime.rss_repositories
     app.state.pipeline = runtime.pipeline
     app.state.repository = runtime.task_repository

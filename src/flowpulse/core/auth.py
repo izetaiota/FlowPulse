@@ -227,9 +227,17 @@ def session(request: Request) -> dict:
     username = verify_token(token) if token else None
     if username is None:
         return {"enabled": True, "username": ""}
-    # 以存储中的账号名为准（token 签发后账号名不会变，此处仅兜底展示）
     user = _load_user()
-    return {"enabled": True, "username": (user or {}).get("username") or username}
+    result = {"enabled": True, "username": (user or {}).get("username") or username}
+    # RBAC 扩展：有 enforcer 时附加 roles/perms
+    enforcer = _state.get("rbac_enforcer")
+    if enforcer is not None:
+        from flowpulse.core.rbac import resolve_user
+
+        current = resolve_user(enforcer, result["username"])
+        result["roles"] = current.roles
+        result["perms"] = current.perms
+    return result
 
 
 @router.post("/api/auth/password", dependencies=[Depends(require_auth)])

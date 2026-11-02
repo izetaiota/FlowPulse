@@ -9,6 +9,8 @@ export const useAuthStore = defineStore("auth", {
     /** 鉴权是否启用（后端未配置 ADMIN_PASSWORD 时为 false，前端不拦截） */
     enabled: false,
     username: "",
+    roles: [] as string[],
+    perms: [] as string[],
     token: localStorage.getItem(TOKEN_KEY) || "",
     /** session 是否已探测（路由守卫等待它） */
     loaded: false,
@@ -28,6 +30,8 @@ export const useAuthStore = defineStore("auth", {
       }
       // 鉴权关闭时后端也返回部署配置的真实账号名，顶栏按真实账号展示
       this.username = session.username;
+      this.roles = session.roles || [];
+      this.perms = session.perms || [];
       this.loaded = true;
     },
 

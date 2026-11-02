@@ -25,6 +25,8 @@
   fp_xhs_dm_drafts         小红书私信建议回复草稿（人工审核 → 浏览器发送）
   fp_webhook_subscriptions Webhook 事件订阅（HMAC 签名投递）
   fp_webhook_events        Webhook 事件 outbox（pending→delivered/failed）
+  fp_roles                 RBAC 角色元数据（code/name/status）
+  fp_casbin_rule           Casbin 策略存储（p/g 策略）
 """
 
 from __future__ import annotations
@@ -141,17 +143,19 @@ class AppMenuRow(Base):
     parent: Mapped[str | None] = mapped_column(String(64))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     visible: Mapped[bool] = mapped_column(Boolean, default=True)
+    type: Mapped[str] = mapped_column(String(16), default="menu")  # dir|menu|button
+    perm: Mapped[str] = mapped_column(String(128), default="")     # 权限码，空=登录可见
 
 
 class UserRow(Base):
-    """Web 登录账号（单账号单行 id=1；密码只存 PBKDF2 哈希，永不落明文）。"""
+    """Web 登录账号（多用户 RBAC；密码只存 PBKDF2 哈希，永不落明文）。"""
 
     __tablename__ = "fp_users"
-    __table_args__ = (CheckConstraint("id = 1", name="ck_fp_users_single_row"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    username: Mapped[str] = mapped_column(String(64), default="admin")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True)
     password_hash: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active|disabled
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -485,6 +489,37 @@ class XhsDmDraftRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class RoleRow(Base):
+    """RBAC 角色元数据（casbin 策略存不了显示名与状态）。"""
+
+    __tablename__ = "fp_roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    name: Mapped[str] = mapped_column(String(64), default="")
+    remark: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class CasbinRuleRow(Base):
+    """Casbin 策略行（自写适配器读写；ptype=p 或 g）。"""
+
+    __tablename__ = "fp_casbin_rule"
+    __table_args__ = (
+        Index("ix_fp_casbin_rule_ptype", "ptype", "v0", "v1"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ptype: Mapped[str] = mapped_column(String(8), default="")
+    v0: Mapped[str] = mapped_column(String(128), default="")
+    v1: Mapped[str] = mapped_column(String(128), default="")
+    v2: Mapped[str] = mapped_column(String(128), default="")
+    v3: Mapped[str] = mapped_column(String(128), default="")
+    v4: Mapped[str] = mapped_column(String(128), default="")
+    v5: Mapped[str] = mapped_column(String(128), default="")
 
 
 class WebhookSubscriptionRow(Base):
